@@ -213,8 +213,8 @@
       <div class="card-title">Novo usuário</div>
       <form id="user-form">
         <div class="frow">
-          <div class="field"><label for="u-user">Usuário</label><input id="u-user" required autocapitalize="none" spellcheck="false" pattern="[a-zA-Z0-9._-]{3,32}"></div>
-          <div class="field"><label for="u-name">Nome</label><input id="u-name"></div>
+          <div class="field"><label for="u-user">Usuário</label><input id="u-user" autocomplete="username" required autocapitalize="none" spellcheck="false" pattern="[a-zA-Z0-9._-]{3,32}"></div>
+          <div class="field"><label for="u-name">Nome</label><input id="u-name" autocomplete="name"></div>
         </div>
         <div class="frow">
           <div class="field"><label for="u-pass">Senha (mín. 6)</label><input id="u-pass" type="password" minlength="6" autocomplete="new-password" required></div>
@@ -230,6 +230,7 @@
     <div class="card">
       <div class="card-title">Alterar minha senha</div>
       <form id="pw-form">
+        <input type="text" autocomplete="username" style="display:none" aria-hidden="true">
         <div class="frow">
           <div class="field"><label for="pw-cur">Senha atual</label><input id="pw-cur" type="password" autocomplete="current-password" required></div>
           <div class="field"><label for="pw-new">Nova senha (mín. 6)</label><input id="pw-new" type="password" minlength="6" autocomplete="new-password" required></div>
