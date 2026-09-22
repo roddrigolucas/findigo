@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>FinNexus — Gestão Financeira</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#05060E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FinNexus">
+<link rel="icon" href="/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<!-- ══ LOGIN ══════════════════════════════════════════════ -->
+<div class="login-wrap" id="login-screen">
+  <form class="login-card" id="login-form" autocomplete="on">
+    <div class="login-logo">FinNexus</div>
+    <div class="login-sub">Sistema de Gestão Financeira</div>
+    <div class="field">
+      <label for="lg-user">Usuário</label>
+      <input id="lg-user" name="username" type="text" autocomplete="username" required autocapitalize="none" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="lg-pass">Senha</label>
+      <input id="lg-pass" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn-primary" type="submit" id="lg-btn">Entrar</button>
+    <div class="login-error" id="lg-error" hidden></div>
+  </form>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════ -->
+<div class="shell" id="app" hidden>
+  <header class="header">
+    <div class="brand">FinNexus</div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="summary">Resumo</button>
+      <button class="tab" data-tab="monthly">Controle Mensal</button>
+      <button class="tab" data-tab="transactions">Transações</button>
+      <button class="tab" data-tab="import">Importar</button>
+      <button class="tab" data-tab="users" id="tab-users" hidden>Usuários</button>
+    </nav>
+    <div class="header-actions">
+      <div class="sync" id="sync"><span class="sd"></span><span id="sync-txt">salvo</span></div>
+      <div class="user-chip"><span class="dot"></span><span id="who">—</span><span class="role" id="who-role"></span></div>
+      <button class="btn-add" id="btn-add">+ Transação</button>
+      <button class="icon-btn" id="btn-export" title="Exportar CSV">⬇</button>
+      <button class="icon-btn" id="btn-logout" title="Sair">⏻</button>
+    </div>
+  </header>
+
+  <!-- ── FILTER BAR ── -->
+  <div class="filterbar" id="filterbar">
+    <button class="filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="filterbar">
+      <span id="filter-toggle-txt">Filtros</span><span class="ft-caret">▾</span>
+    </button>
+    <div class="fgroup">
+      <label>Período</label>
+      <div class="chip-row" id="period-chips">
+        <button class="chip" data-months="1">1M</button>
+        <button class="chip" data-months="3">3M</button>
+        <button class="chip active" data-months="6">6M</button>
+        <button class="chip" data-months="12">12M</button>
+      </div>
+    </div>
+    <div class="fgroup">
+      <label for="f-from">De</label>
+      <input type="month" id="f-from">
+    </div>
+    <div class="fgroup">
+      <label for="f-to">Até</label>
+      <input type="month" id="f-to">
+    </div>
+    <div class="fgroup">
+      <label for="f-cat">Categoria</label>
+      <select id="f-cat"><option value="">Todas</option></select>
+    </div>
+    <div class="fgroup">
+      <label for="f-status">Situação</label>
+      <select id="f-status">
+        <option value="">Todas</option>
+        <option value="paid">Realizadas</option>
+        <option value="pending">Previstas</option>
+      </select>
+    </div>
+    <div class="filter-note" id="filter-note">—</div>
+  </div>
+
+  <!-- ── TAB: RESUMO ── -->
+  <section id="panel-summary">
+    <div class="kpi-grid">
+      <div class="kpi big" style="--kc:var(--neon-cyan)">
+        <div class="k-label">Saldo Líquido Disponível</div>
+        <div class="k-value" id="k-net">R$ 0,00</div>
+        <div class="k-sub" id="k-net-sub">receitas realizadas − despesas realizadas</div>
+      </div>
+      <div class="kpi" style="--kc:var(--neon-lime)">
+        <div class="k-label">Receitas Previstas do Mês</div>
+        <div class="k-value" id="k-inc-fc">R$ 0,00</div>
+        <div class="k-sub" id="k-inc-fc-sub">a receber</div>
+      </div>
+      <div class="kpi" style="--kc:var(--neon-pink)">
+        <div class="k-label">Despesas Previstas do Mês</div>
+        <div class="k-value" id="k-exp-fc">R$ 0,00</div>
+        <div class="k-sub" id="k-exp-fc-sub">a pagar</div>
+      </div>
+      <div class="kpi" style="--kc:var(--neon-amber)">
+        <div class="k-label">Saldo Projetado do Mês</div>
+        <div class="k-value" id="k-proj">R$ 0,00</div>
+        <div class="k-sub">disponível + previsto</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi" style="--kc:var(--neon-lime)">
+        <div class="k-label">Receitas no Período</div>
+        <div class="k-value" id="k-inc">R$ 0,00</div>
+        <div class="k-sub" id="k-inc-sub">—</div>
+      </div>
+      <div class="kpi" style="--kc:var(--neon-pink)">
+        <div class="k-label">Despesas no Período</div>
+        <div class="k-value" id="k-exp">R$ 0,00</div>
+        <div class="k-sub" id="k-exp-sub">—</div>
+      </div>
+      <div class="kpi" style="--kc:var(--neon-violet)">
+        <div class="k-label">Média Mensal de Gastos</div>
+        <div class="k-value" id="k-avg">R$ 0,00</div>
+        <div class="k-sub" id="k-avg-sub">—</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Receitas × Despesas por mês</div>
+        <div class="chart-box"><canvas id="c-monthly" height="300"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Despesas por categoria</div>
+        <div class="chart-box"><canvas id="c-donut" height="230"></canvas></div>
+        <div class="legend" id="donut-legend"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Próximos lançamentos previstos</div>
+      <div class="tbl-wrap"><table id="upcoming-tbl"><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ── TAB: CONTROLE MENSAL ── -->
+  <section id="panel-monthly" hidden>
+    <div class="month-grid" id="month-grid"></div>
+  </section>
+
+  <!-- ── TAB: TRANSAÇÕES ── -->
+  <section id="panel-transactions" hidden>
+    <div class="card">
+      <div class="card-title" id="tx-count">Transações</div>
+      <div class="tbl-wrap">
+        <table id="tx-table">
+          <thead><tr>
+            <th class="sortable" data-sort="date">Data</th>
+            <th class="sortable" data-sort="desc">Descrição</th>
+            <th class="sortable" data-sort="cat">Categoria</th>
+            <th>Conta</th>
+            <th>Situação</th>
+            <th class="sortable num" data-sort="amount">Valor</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TAB: IMPORTAR ── -->
+  <section id="panel-import" hidden>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Importar extrato bancário</div>
+      <div class="drop" id="drop">
+        <span class="di">📥</span>
+        <h3>Arraste o arquivo aqui ou clique para escolher</h3>
+        <p>Detecção automática de colunas, valores em formato brasileiro e categorias</p>
+        <div class="fmt-row">
+          <span class="fmt">XLSX</span><span class="fmt">CSV</span><span class="fmt">PDF</span>
+          <span class="fmt">OFX</span><span class="fmt">TXT</span>
+        </div>
+      </div>
+      <input type="file" id="file-input" hidden accept=".xlsx,.xls,.csv,.txt,.pdf,.ofx">
+      <div class="status" id="import-status"></div>
+    </div>
+    <div class="card" id="preview-card" hidden>
+      <div class="card-title" id="preview-title">Prévia</div>
+      <div class="tbl-wrap"><table id="preview-table"><tbody></tbody></table></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="btn-cancel-import">Cancelar</button>
+        <button class="btn-primary" id="btn-confirm-import" style="width:auto">Confirmar importação</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TAB: USUÁRIOS ── -->
+  <section id="panel-users" hidden>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Novo usuário</div>
+      <form id="user-form">
+        <div class="frow">
+          <div class="field"><label for="u-user">Usuário</label><input id="u-user" required autocapitalize="none" spellcheck="false" pattern="[a-zA-Z0-9._-]{3,32}"></div>
+          <div class="field"><label for="u-name">Nome</label><input id="u-name"></div>
+        </div>
+        <div class="frow">
+          <div class="field"><label for="u-pass">Senha (mín. 6)</label><input id="u-pass" type="password" minlength="6" required></div>
+          <div class="field"><label for="u-role">Perfil</label><select id="u-role"><option value="user">Usuário</option><option value="admin">Administrador</option></select></div>
+        </div>
+        <button class="btn-primary" type="submit" style="width:auto;padding:11px 22px">Criar usuário</button>
+      </form>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Usuários do sistema</div>
+      <div class="tbl-wrap"><table id="users-table"><tbody></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Alterar minha senha</div>
+      <form id="pw-form">
+        <div class="frow">
+          <div class="field"><label for="pw-cur">Senha atual</label><input id="pw-cur" type="password" required></div>
+          <div class="field"><label for="pw-new">Nova senha (mín. 6)</label><input id="pw-new" type="password" minlength="6" required></div>
+        </div>
+        <button class="btn-primary" type="submit" style="width:auto;padding:11px 22px">Alterar senha</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+<!-- ══ MODAL ══════════════════════════════════════════════ -->
+<div class="overlay" id="modal-overlay" hidden>
+  <form class="modal" id="tx-form">
+    <h2 id="modal-title">Nova transação</h2>
+    <div class="seg" id="type-seg">
+      <button type="button" data-t="income">Receita</button>
+      <button type="button" class="active" data-t="expense">Despesa</button>
+    </div>
+    <div class="frow">
+      <div class="field"><label for="m-date">Data</label><input type="date" id="m-date" required></div>
+      <div class="field"><label for="m-amount">Valor (R$)</label><input type="number" id="m-amount" step="0.01" min="0" required></div>
+    </div>
+    <div class="field"><label for="m-desc">Descrição</label><input id="m-desc" required maxlength="240"></div>
+    <div class="frow">
+      <div class="field"><label for="m-cat">Categoria</label><select id="m-cat"></select></div>
+      <div class="field"><label for="m-status">Situação</label>
+        <select id="m-status"><option value="paid">Realizada</option><option value="pending">Prevista</option></select>
+      </div>
+    </div>
+    <div class="field"><label for="m-account">Conta / Cartão</label><input id="m-account" maxlength="60" placeholder="opcional"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="btn-del" hidden>Excluir</button>
+      <button type="button" class="btn-ghost" id="btn-close">Cancelar</button>
+      <button type="submit" class="btn-primary" style="width:auto">Salvar</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/parsers.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

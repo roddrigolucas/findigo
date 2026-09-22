@@ -1,0 +1,23 @@
+{
+  "name": "FinNexus — Gestão Financeira",
+  "short_name": "FinNexus",
+  "description": "Controle de receitas, despesas e importação de extratos bancários.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#05060E",
+  "theme_color": "#05060E",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nova transação", "url": "/?acao=nova", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Importar extrato", "url": "/?acao=importar", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "finnexus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de gestão financeira pessoal com importação de extratos, controle mensal e autenticação.",
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
