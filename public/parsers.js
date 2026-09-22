@@ -68,10 +68,15 @@ function findHeaderRow(allRows) {
 // CSV PARSER
 // ─────────────────────────────────────────────────────────────────
 function detectDelimiter(text) {
-  const line=(text.split('\n')[0]||'').slice(0,500);
-  const counts={',':0,';':0,'\t':0,'|':0};
-  let inQ=false;
-  for(const c of line){if(c==='"')inQ=!inQ;if(!inQ&&counts[c]!==undefined)counts[c]++;}
+  const lines = text.split(/\r?\n/).slice(0, 15);
+  const counts = {',':0, ';':0, '\t':0, '|':0};
+  lines.forEach(line => {
+    let inQ = false;
+    for (const c of line.slice(0,500)) {
+      if (c === '"') inQ = !inQ;
+      if (!inQ && counts[c] !== undefined) counts[c]++;
+    }
+  });
   return Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
 }
 
