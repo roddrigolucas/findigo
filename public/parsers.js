@@ -39,6 +39,32 @@ function categorize(desc, type) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// KEYWORDS FOR COLUMN MAPPING
+// ─────────────────────────────────────────────────────────────────
+const DATE_KW = ['data','date','dt','dia','datum','fecha'];
+const DESC_KW = ['descri','histor','titulo','título','memo','lancamento','lançamento','transaction','detail','label','name','estabelecimento'];
+const AMT_KW  = ['valor','value','amount','total','montante','importe'];
+const CRD_KW  = ['crédito','credito','credit','entrada','income','receita','in'];
+const DBT_KW  = ['débito','debito','debit','saída','saida','expense','despesa','out'];
+
+function deaccent(s){ return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+
+function findHeaderRow(allRows) {
+  let bestIdx = 0;
+  let maxScore = -1;
+  for(let i=0; i<Math.min(allRows.length, 25); i++) {
+    const row = allRows[i];
+    let score = row.length;
+    const norm = row.map(c => deaccent(String(c).toLowerCase().trim()));
+    if(norm.some(c => DATE_KW.some(k => c.includes(k)))) score += 10;
+    if(norm.some(c => DESC_KW.some(k => c.includes(k)))) score += 10;
+    if(norm.some(c => AMT_KW.some(k => c.includes(k)))) score += 10;
+    if(score > maxScore) { maxScore = score; bestIdx = i; }
+  }
+  return bestIdx;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // CSV PARSER
 // ─────────────────────────────────────────────────────────────────
 function detectDelimiter(text) {
@@ -66,10 +92,10 @@ function parseCSVText(text) {
   const delim=detectDelimiter(text);
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
   if(lines.length<2) return {headers:[],rows:[]};
-  const headers=parseCSVLine(lines[0],delim).map(h=>h.toLowerCase().trim().replace(/['"]/g,''));
-  const rows=lines.slice(1)
-    .map(l=>parseCSVLine(l,delim))
-    .filter(cells=>cells.some(v=>String(v).trim()));
+  const allRows = lines.map(l => parseCSVLine(l, delim));
+  const bestIdx = findHeaderRow(allRows);
+  const headers = allRows[bestIdx].map(h=>h.toLowerCase().trim().replace(/['"]/g,''));
+  const rows = allRows.slice(bestIdx+1).filter(cells=>cells.some(v=>String(v).trim()));
   return {headers,rows};
 }
 
@@ -99,15 +125,7 @@ function parseBRNumber(s) {
   return parseFloat(s)||0;
 }
 
-// Detect which columns are date / description / amount / credit / debit
-const DATE_KW = ['data','date','dt','dia','datum','fecha'];
-const DESC_KW = ['descri','histor','titulo','título','memo','lancamento','lançamento','transaction','detail','label','name','estabelecimento'];
-const AMT_KW  = ['valor','value','amount','total','montante','importe'];
-const CRD_KW  = ['crédito','credito','credit','entrada','income','receita','in'];
-const DBT_KW  = ['débito','debito','debit','saída','saida','expense','despesa','out'];
-
-// remove acentos para que "Histórico" case com "histor", "Crédito" com "credito" etc.
-function deaccent(s){ return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+// matchKW and detectMapping
 function matchKW(header, kws) {
   const h = deaccent(header);
   return kws.some(k => h.includes(deaccent(k)));
@@ -262,8 +280,10 @@ async function parseXLSX(buffer) {
   if(!rNums.length) return{headers:[],rows:[]};
   const maxCol=Math.max(...rNums.flatMap(n=>Object.keys(rowMap[n]).map(Number)));
   const toArr=rn=>{ const a=[]; for(let i=0;i<=maxCol;i++) a.push(rowMap[rn][i]||''); return a; };
-  const headers=toArr(rNums[0]);
-  const rows=rNums.slice(1).map(toArr);
+  const allRows = rNums.map(toArr);
+  const bestIdx = findHeaderRow(allRows);
+  const headers = allRows[bestIdx];
+  const rows = allRows.slice(bestIdx+1);
   return{headers,rows};
 }
 
