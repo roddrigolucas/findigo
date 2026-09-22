@@ -653,7 +653,7 @@ async function handleFile(file){
     } else if (name.endsWith('.ofx')){
       txs = parseOFX(await file.text());
     } else if (name.endsWith('.pdf')){
-      const text = extractPDFText(await file.arrayBuffer());
+      const text = await extractPDFText(await file.arrayBuffer());
       txs = parsePlainText(text);
     } else {
       const text = await file.text();

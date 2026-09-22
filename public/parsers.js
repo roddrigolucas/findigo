@@ -315,35 +315,60 @@ function parseOFX(text) {
   return txs;
 }
 
+function cleanDesc(desc) {
+  desc = desc.replace(/"/g, ''); 
+  desc = desc.replace(/Cp\s*:\d+-?/ig, '');
+  desc = desc.replace(/\d{5}\s+\d{5,15}\s+/g, '');
+  desc = desc.replace(/-\s*•••\.\d{3}\.\d{3}-••/g, ''); 
+  desc = desc.replace(/-\s*\d{2}\.\d{3}\.\d{3}/g, '');
+  return desc.trim();
+}
+
 function parsePlainText(text){
   const out = [];
   const lines = text.split(/[\r\n]+/);
   
-  // Traditional regex: date on the same line
   const reTrad = /^(\d{2}[\/.-]\d{2}(?:[\/.-]\d{2,4})?)\s+(.{3,120}?)\s+(-?R?\$?\s?[\d.]{1,12},\d{2})\s*$/;
-  
-  // Block regex: date on a header line
   const reDateHeader = /^(\d{1,2})\s+de\s+([a-zA-ZçÇ]+)\s+de\s+(\d{4})/i;
-  const reBlockTx = /^(.*?)\s*(-?R?\$\s*[\d.]{1,12},\d{2})(?:\s+-?R?\$\s*[\d.]{1,12},\d{2})?\s*$/;
+  const reNuDateHeader = /^(\d{2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(\d{4})/i;
+  
   const monthMap = { 'janeiro':'01', 'fevereiro':'02', 'março':'03', 'marco':'03', 'abril':'04', 'maio':'05', 'junho':'06', 'julho':'07', 'agosto':'08', 'setembro':'09', 'outubro':'10', 'novembro':'11', 'dezembro':'12' };
+  const nuMap = {jan:'01',fev:'02',mar:'03',abr:'04',mai:'05',jun:'06',jul:'07',ago:'08',set:'09',out:'10',nov:'11',dez:'12'};
 
   let currentDate = null;
   let pendingDesc = '';
+  let nuType = null;
 
   lines.forEach(line => {
     line = line.trim();
     if (!line) return;
-    if (/^SAC|Fale com a gente/i.test(line)) return;
+    if (/^SAC|Fale com a gente|Tem alguma dúvida/i.test(line)) return;
 
-    // Check date header
+    // Check Inter date header
     const dMatch = line.match(reDateHeader);
     if (dMatch) {
       const d = dMatch[1].padStart(2, '0');
       const m = monthMap[dMatch[2].toLowerCase()];
       const y = dMatch[3];
-      if (m) { currentDate = `${y}-${m}-${d}`; pendingDesc = ''; }
+      if (m) { currentDate = `${y}-${m}-${d}`; pendingDesc = ''; nuType = null; }
       return;
     }
+
+    // Check Nubank date header
+    const nuDateMatch = line.match(reNuDateHeader);
+    if (nuDateMatch) {
+      const d = nuDateMatch[1].padStart(2, '0');
+      const m = nuMap[nuDateMatch[2].toLowerCase()];
+      const y = nuDateMatch[3];
+      if (m) { currentDate = `${y}-${m}-${d}`; pendingDesc = ''; }
+      if (line.toLowerCase().includes('entradas')) nuType = 'income';
+      if (line.toLowerCase().includes('saídas') || line.toLowerCase().includes('saidas')) nuType = 'expense';
+      return;
+    }
+
+    // Nubank section toggles
+    if (line.toLowerCase().includes('total de entradas')) { nuType = 'income'; return; }
+    if (line.toLowerCase().includes('total de saídas') || line.toLowerCase().includes('total de saidas')) { nuType = 'expense'; return; }
 
     // Try traditional inline date
     const tradMatch = line.match(reTrad);
@@ -360,24 +385,38 @@ function parsePlainText(text){
 
     // Try block transaction
     if (currentDate) {
-      const blockMatch = line.match(reBlockTx);
-      if (blockMatch) {
-        let desc = (pendingDesc + ' ' + blockMatch[1]).trim();
-        desc = desc.replace(/"/g, ''); // remove quotes
-        desc = desc.replace(/Cp\s*:\d+-?/ig, ''); // remove internal IDs
-        desc = desc.replace(/\d{5}\s+\d{5,15}\s+/g, ''); // remove internal IDs
+      const interMatch = line.match(/^(.*?)\s*(-?R?\$\s*[\d.]{1,12},\d{2})(?:\s+-?R?\$\s*[\d.]{1,12},\d{2})?\s*$/);
+      const nuMatch = line.match(/^(.*?)\s+((?:\d{1,3}\.)*\d{1,3},\d{2})\s*$/);
 
+      if (interMatch && interMatch[2]) {
+        let desc = (pendingDesc + ' ' + interMatch[1]).trim();
+        desc = cleanDesc(desc);
         if (desc.toLowerCase().startsWith('saldo') || desc.toLowerCase().includes('saldo do dia')) {
           pendingDesc = ''; return;
         }
 
-        let amount = parseBRNumber(blockMatch[2]);
+        let amount = parseBRNumber(interMatch[2]);
         const type = amount >= 0 ? 'income' : 'expense';
         amount = Math.abs(amount);
         if (amount) out.push({ id: uid(), date: currentDate, desc: desc||'Transação', cat: categorize(desc, type), type, amount, account:'', status:'paid' });
         
         pendingDesc = '';
-      } else {
+      } 
+      else if (nuMatch && nuType && pendingDesc === '') {
+        let desc = nuMatch[1].trim();
+        desc = cleanDesc(desc);
+        if (desc.toLowerCase().startsWith('saldo') || desc.toLowerCase().includes('total')) {
+          return;
+        }
+        
+        let amount = parseBRNumber(nuMatch[2]);
+        amount = Math.abs(amount);
+        if (amount > 0) {
+          out.push({ id: uid(), date: currentDate, desc: desc||'Transação', cat: categorize(desc, nuType), type: nuType, amount, account:'', status:'paid' });
+        }
+        pendingDesc = ''; 
+      }
+      else {
         pendingDesc += ' ' + line;
       }
     }
@@ -387,22 +426,35 @@ function parsePlainText(text){
 }
 
 // ─────────────────────────────────────────────────────────────────
-// PDF TEXT EXTRACTION (heuristic)
+// PDF TEXT EXTRACTION (pdf.js)
 // ─────────────────────────────────────────────────────────────────
-function extractPDFText(buffer) {
-  const bytes=new Uint8Array(buffer);
-  let text='';
-  // Extract text between BT...ET markers (PDF text objects)
-  const raw=new TextDecoder('latin1').decode(bytes);
-  const btRe=/BT([\s\S]*?)ET/g; let m;
-  while((m=btRe.exec(raw))!==null){
-    // Extract Tj, TJ, ' strings
-    const tjRe=/\(([^)]*)\)\s*(?:Tj|')|(\[.*?\])\s*TJ/g; let tm;
-    while((tm=tjRe.exec(m[1]))!==null){
-      const s=tm[1]||'';
-      text+=s.replace(/\\(\d{3})/g,(_,o)=>String.fromCharCode(parseInt(o,8)))+' ';
-    }
+async function extractPDFText(buffer) {
+  if (!window.pdfjsLib) throw new Error('PDF.js não carregado. Verifique sua conexão com a internet ou faça Ctrl+F5.');
+  
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  
+  const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(buffer)});
+  const pdf = await loadingTask.promise;
+  let fullText = '';
+  
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    
+    const lines = {};
+    content.items.forEach(item => {
+      const y = Math.round(item.transform[5] / 5) * 5;
+      if (!lines[y]) lines[y] = [];
+      lines[y].push(item);
+    });
+    
+    const sortedY = Object.keys(lines).map(Number).sort((a,b) => b - a);
+    
+    sortedY.forEach(y => {
+      const lineItems = lines[y].sort((a,b) => a.transform[4] - b.transform[4]);
+      fullText += lineItems.map(i => i.str).join(' ') + '\n';
+    });
   }
-  return text;
+  return fullText;
 }
 
