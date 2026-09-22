@@ -315,6 +315,77 @@ function parseOFX(text) {
   return txs;
 }
 
+function parsePlainText(text){
+  const out = [];
+  const lines = text.split(/[\r\n]+/);
+  
+  // Traditional regex: date on the same line
+  const reTrad = /^(\d{2}[\/.-]\d{2}(?:[\/.-]\d{2,4})?)\s+(.{3,120}?)\s+(-?R?\$?\s?[\d.]{1,12},\d{2})\s*$/;
+  
+  // Block regex: date on a header line
+  const reDateHeader = /^(\d{1,2})\s+de\s+([a-zA-ZçÇ]+)\s+de\s+(\d{4})/i;
+  const reBlockTx = /^(.*?)\s*(-?R?\$\s*[\d.]{1,12},\d{2})(?:\s+-?R?\$\s*[\d.]{1,12},\d{2})?\s*$/;
+  const monthMap = { 'janeiro':'01', 'fevereiro':'02', 'março':'03', 'marco':'03', 'abril':'04', 'maio':'05', 'junho':'06', 'julho':'07', 'agosto':'08', 'setembro':'09', 'outubro':'10', 'novembro':'11', 'dezembro':'12' };
+
+  let currentDate = null;
+  let pendingDesc = '';
+
+  lines.forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    if (/^SAC|Fale com a gente/i.test(line)) return;
+
+    // Check date header
+    const dMatch = line.match(reDateHeader);
+    if (dMatch) {
+      const d = dMatch[1].padStart(2, '0');
+      const m = monthMap[dMatch[2].toLowerCase()];
+      const y = dMatch[3];
+      if (m) { currentDate = `${y}-${m}-${d}`; pendingDesc = ''; }
+      return;
+    }
+
+    // Try traditional inline date
+    const tradMatch = line.match(reTrad);
+    if (tradMatch) {
+      const date = parseBRDate(tradMatch[1]);
+      if (!date) return;
+      const desc = tradMatch[2].trim();
+      let amount = parseBRNumber(tradMatch[3]);
+      const type = amount >= 0 ? 'income' : 'expense';
+      amount = Math.abs(amount);
+      if (amount) out.push({ id: uid(), date, desc, cat: categorize(desc, type), type, amount, account:'', status:'paid' });
+      return;
+    }
+
+    // Try block transaction
+    if (currentDate) {
+      const blockMatch = line.match(reBlockTx);
+      if (blockMatch) {
+        let desc = (pendingDesc + ' ' + blockMatch[1]).trim();
+        desc = desc.replace(/"/g, ''); // remove quotes
+        desc = desc.replace(/Cp\s*:\d+-?/ig, ''); // remove internal IDs
+        desc = desc.replace(/\d{5}\s+\d{5,15}\s+/g, ''); // remove internal IDs
+
+        if (desc.toLowerCase().startsWith('saldo') || desc.toLowerCase().includes('saldo do dia')) {
+          pendingDesc = ''; return;
+        }
+
+        let amount = parseBRNumber(blockMatch[2]);
+        const type = amount >= 0 ? 'income' : 'expense';
+        amount = Math.abs(amount);
+        if (amount) out.push({ id: uid(), date: currentDate, desc: desc||'Transação', cat: categorize(desc, type), type, amount, account:'', status:'paid' });
+        
+        pendingDesc = '';
+      } else {
+        pendingDesc += ' ' + line;
+      }
+    }
+  });
+
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // PDF TEXT EXTRACTION (heuristic)
 // ─────────────────────────────────────────────────────────────────
