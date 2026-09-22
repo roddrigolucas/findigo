@@ -42,10 +42,10 @@ function categorize(desc, type) {
 // KEYWORDS FOR COLUMN MAPPING
 // ─────────────────────────────────────────────────────────────────
 const DATE_KW = ['data','date','dt','dia','datum','fecha'];
-const DESC_KW = ['descri','histor','titulo','título','memo','lancamento','lançamento','transaction','detail','label','name','estabelecimento'];
+const DESC_KW = ['desc','hist','titulo','título','memo','lanc','transaction','detail','label','name','estabelecimento'];
 const AMT_KW  = ['valor','value','amount','total','montante','importe'];
-const CRD_KW  = ['crédito','credito','credit','entrada','income','receita','in'];
-const DBT_KW  = ['débito','debito','debit','saída','saida','expense','despesa','out'];
+const CRD_KW  = ['cred','credit','entrada','income','receita','in'];
+const DBT_KW  = ['deb','debit','saída','saida','expense','despesa','out'];
 
 function deaccent(s){ return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 
