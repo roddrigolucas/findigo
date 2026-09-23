@@ -25,17 +25,82 @@ const CAT_RULES = [
   {r:/compras?|shopping|loja|magazine|amazon|americanas|submarino|casas\s+bahia|extra\s+eletro/i, c:'Compras'},
 ];
 
-function categorize(desc, type) {
-  const d = String(desc);
+// ─────────────────────────────────────────────────────────────────
+// INTELIGÊNCIA ARTIFICIAL (NAIVE BAYES)
+// ─────────────────────────────────────────────────────────────────
+let bayesModel = { wordsByCat: {}, catCounts: {}, totalDocs: 0 };
+
+function trainBayes(transactions) {
+  const wordsByCat = {};
+  const catCounts = {};
+  let totalDocs = 0;
+  
+  transactions.forEach(tx => {
+    if (!tx.cat) return;
+    totalDocs++;
+    if (!wordsByCat[tx.cat]) { wordsByCat[tx.cat] = {}; catCounts[tx.cat] = 0; }
+    catCounts[tx.cat]++;
+    
+    const words = String(tx.desc).toLowerCase().split(/[\W_]+/).filter(w => w.length > 2 && isNaN(w));
+    words.forEach(w => {
+      wordsByCat[tx.cat][w] = (wordsByCat[tx.cat][w] || 0) + 1;
+    });
+  });
+  
+  bayesModel = { wordsByCat, catCounts, totalDocs };
+}
+
+function predictCategory(desc, type) {
+  const d = String(desc).toLowerCase();
+  
+  // 1. Tenta regras estáticas primeiro
   for (const rule of CAT_RULES) {
     if (rule.r.test(d)) {
       const cat = rule.c;
-      if (type === 'income' && INCOME_CATS.includes(cat)) return cat;
-      if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
+      if (typeof INCOME_CATS !== 'undefined') {
+        if (type === 'income' && INCOME_CATS.includes(cat)) return cat;
+        if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
+      }
       if (type === 'expense') return cat;
     }
   }
-  return type === 'income' ? 'Outros Rendimentos' : 'Outros';
+  
+  // 2. Fallback para IA Bayesiana
+  if (bayesModel.totalDocs === 0) {
+    return type === 'income' ? 'Outros Rendimentos' : 'Outros';
+  }
+  
+  const words = d.split(/[\W_]+/).filter(w => w.length > 2 && isNaN(w));
+  let bestCat = type === 'income' ? 'Outros Rendimentos' : 'Outros';
+  let bestScore = -Infinity;
+  const V = 1000;
+  
+  for (const cat in bayesModel.catCounts) {
+    if (typeof INCOME_CATS !== 'undefined') {
+      if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
+      if (type === 'expense' && INCOME_CATS.includes(cat)) continue;
+    }
+    
+    let score = Math.log(bayesModel.catCounts[cat] / bayesModel.totalDocs);
+    const catWords = bayesModel.wordsByCat[cat] || {};
+    const totalWordsInCat = Object.values(catWords).reduce((a,b) => a+b, 0);
+    
+    words.forEach(w => {
+      const count = catWords[w] || 0;
+      score += Math.log((count + 1) / (totalWordsInCat + V));
+    });
+    
+    if (score > bestScore) {
+      bestScore = score;
+      bestCat = cat;
+    }
+  }
+  
+  return bestCat;
+}
+
+function categorize(desc, type) {
+  return predictCategory(desc, type);
 }
 
 // ─────────────────────────────────────────────────────────────────

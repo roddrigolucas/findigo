@@ -305,3 +305,12 @@ body{
 @media(display-mode:standalone){
   .header{padding-top:8px}
 }
+
+
+/* Bulk Actions & Table Fixes */
+.bulk-bar { display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); padding: 12px 16px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+.bulk-bar span { font-weight: 600; color: var(--text-primary); }
+.bulk-bar select { padding: 8px 12px; border-radius: 6px; background: var(--bg-dark); color: var(--text-primary); border: 1px solid var(--border); }
+.chk-col { width: 40px; text-align: center; }
+td.chk-col input, th.chk-col input { cursor: pointer; transform: scale(1.2); accent-color: var(--primary); }
+tbody tr.selected { background: rgba(88,101,242,0.1) !important; }

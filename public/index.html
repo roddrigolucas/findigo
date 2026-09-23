@@ -84,6 +84,10 @@
       <select id="f-cat"><option value="">Todas</option></select>
     </div>
     <div class="fgroup">
+      <label for="f-acc">Conta</label>
+      <select id="f-acc"><option value="">Todas</option></select>
+    </div>
+    <div class="fgroup">
       <label for="f-status">Situação</label>
       <select id="f-status">
         <option value="">Todas</option>
@@ -163,10 +167,22 @@
   <!-- ── TAB: TRANSAÇÕES ── -->
   <section id="panel-transactions" hidden>
     <div class="card">
-      <div class="card-title" id="tx-count">Transações</div>
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="tx-count">Transações</span>
+      </div>
+      
+      <div class="bulk-bar" id="bulk-bar" hidden>
+        <span id="bulk-count">0 selecionadas</span>
+        <div style="display:flex; gap:8px;">
+          <select id="bulk-cat"><option value="">Categorizar como...</option></select>
+          <button class="btn-danger" id="btn-bulk-del">Excluir</button>
+        </div>
+      </div>
+
       <div class="tbl-wrap">
         <table id="tx-table">
           <thead><tr>
+            <th class="chk-col"><input type="checkbox" id="chk-all"></th>
             <th class="sortable" data-sort="date">Data</th>
             <th class="sortable" data-sort="desc">Descrição</th>
             <th class="sortable" data-sort="cat">Categoria</th>
@@ -199,6 +215,12 @@
     </div>
     <div class="card" id="preview-card" hidden>
       <div class="card-title" id="preview-title">Prévia</div>
+      <div class="frow" style="margin-bottom: 12px; max-width: 300px;">
+        <div class="field">
+          <label for="import-account">Vincular extrato à conta:</label>
+          <select id="import-account"></select>
+        </div>
+      </div>
       <div class="tbl-wrap"><table id="preview-table"><tbody></tbody></table></div>
       <div class="modal-actions">
         <button class="btn-ghost" id="btn-cancel-import">Cancelar</button>
@@ -260,7 +282,7 @@
         <select id="m-status"><option value="paid">Realizada</option><option value="pending">Prevista</option></select>
       </div>
     </div>
-    <div class="field"><label for="m-account">Conta / Cartão</label><input id="m-account" maxlength="60" placeholder="opcional"></div>
+    <div class="field"><label for="m-account">Conta</label><select id="m-account"></select></div>
     <div class="modal-actions">
       <button type="button" class="btn-danger" id="btn-del" hidden>Excluir</button>
       <button type="button" class="btn-ghost" id="btn-close">Cancelar</button>

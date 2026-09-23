@@ -6,6 +6,7 @@ const EXPENSE_CATS = ['Alimentação','Moradia','Transporte','Saúde','Educaçã
   'Assinaturas','Compras','Cartões','Telecomunicações','Pets','Viagens','Dívidas',
   'Transferências','Poupança','Impostos','Outros'];
 const ALL_CATS = [...INCOME_CATS, ...EXPENSE_CATS];
+const ACCOUNTS = ['Santander', 'Nubank', 'Caixa Poup.Rodrigo', 'Caixa Vó', 'BB Vó', 'Inter', 'Em caixa (efetivo)'];
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
@@ -29,7 +30,9 @@ let editingId = null;
 let modalType = 'expense';
 let sortCol = 'date', sortDir = -1;
 let saveTimer = null;
-const filters = { from:null, to:null, cat:'', status:'' };
+let selectedTxs = new Set();
+let lastCheckedId = null;
+const filters = { from:null, to:null, cat:'', status:'', acc:'' };
 
 const $  = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -153,6 +156,7 @@ async function loadData(){
   try {
     const r = await api('/api/data');
     transactions = (r.transactions || []).map(normalize);
+    if (typeof trainBayes === 'function') trainBayes(transactions);
     setSync('ok');
   } catch (e) {
     transactions = [];
@@ -186,6 +190,7 @@ function setSync(state){
 }
 
 function persist(){
+  if (typeof trainBayes === 'function') trainBayes(transactions);
   clearTimeout(saveTimer);
   setSync('saving');
   saveTimer = setTimeout(async () => {
@@ -238,13 +243,21 @@ function onDateFilterChange(){
 $('#f-from').addEventListener('change', onDateFilterChange);
 $('#f-to').addEventListener('change', onDateFilterChange);
 $('#f-cat').addEventListener('change', () => { filters.cat = $('#f-cat').value; renderAll(); });
+$('#f-acc').addEventListener('change', () => { filters.acc = $('#f-acc').value; renderAll(); });
 $('#f-status').addEventListener('change', () => { filters.status = $('#f-status').value; renderAll(); });
 
 function populateFilters(){
   const cats = [...new Set(transactions.map(t => t.cat))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  const sel = $('#f-cat'), cur = sel.value;
-  sel.innerHTML = '<option value="">Todas</option>' + cats.map(c=>`<option>${esc(c)}</option>`).join('');
-  if (cats.includes(cur)) sel.value = cur;
+  const selCat = $('#f-cat'), curCat = selCat.value;
+  selCat.innerHTML = '<option value="">Todas</option>' + cats.map(c=>`<option>${esc(c)}</option>`).join('');
+  if (cats.includes(curCat)) selCat.value = curCat;
+  
+  const accOpts = '<option value="">Todas</option>' + ACCOUNTS.map(a=>`<option>${esc(a)}</option>`).join('');
+  if ($('#f-acc').innerHTML.length < 50) $('#f-acc').innerHTML = accOpts;
+  
+  const mAccOpts = '<option value="">(Nenhuma)</option>' + ACCOUNTS.map(a=>`<option>${esc(a)}</option>`).join('');
+  if ($('#m-account').innerHTML.length < 50) $('#m-account').innerHTML = mAccOpts;
+  if ($('#import-account').innerHTML.length < 50) $('#import-account').innerHTML = mAccOpts;
 
   const min = addMonths(curMonth(), -(MAX_YEARS*12 - 1));
   $('#f-from').min = min; $('#f-to').min = min;
@@ -259,6 +272,7 @@ function getFiltered(){
   return transactions.filter(t =>
     inPeriod(t) &&
     (!filters.cat || t.cat === filters.cat) &&
+    (!filters.acc || t.account === filters.acc) &&
     (!filters.status || t.status === filters.status)
   );
 }
@@ -414,13 +428,27 @@ function renderTx(){
     else r = String(a[sortCol]).localeCompare(String(b[sortCol]),'pt-BR');
     return r * sortDir;
   });
+  
+  const currentFilteredIds = new Set(f.map(t => t.id));
+  const newSelection = new Set();
+  selectedTxs.forEach(id => { if (currentFilteredIds.has(id)) newSelection.add(id); });
+  selectedTxs = newSelection;
+  updateBulkBar();
+
   $('#tx-count').textContent = `Transações — ${f.length} no período`;
   const tb = $('#tx-table').querySelector('tbody');
   if (!f.length){
-    tb.innerHTML = `<tr><td colspan="7"><div class="empty"><span class="ei">📭</span>Nenhuma transação neste filtro.</div></td></tr>`;
+    tb.innerHTML = `<tr><td colspan="8"><div class="empty"><span class="ei">📭</span>Nenhuma transação neste filtro.</div></td></tr>`;
+    $('#chk-all').checked = false;
     return;
   }
-  tb.innerHTML = f.map(t => `<tr>
+  
+  $('#chk-all').checked = selectedTxs.size === f.length && f.length > 0;
+
+  tb.innerHTML = f.map((t, index) => {
+    const sel = selectedTxs.has(t.id);
+    return `<tr class="${sel ? 'selected' : ''}" data-index="${index}">
+    <td class="chk-col"><input type="checkbox" class="chk-row" data-id="${t.id}" ${sel?'checked':''}></td>
     <td style="white-space:nowrap">${t.date.split('-').reverse().join('/')}</td>
     <td>${esc(t.desc)}</td>
     <td><span class="pill">${esc(t.cat)}</span></td>
@@ -431,10 +459,93 @@ function renderTx(){
       <button class="mini-btn" data-edit="${t.id}">Editar</button>
       <button class="mini-btn danger" data-del="${t.id}">×</button>
     </div></td>
-  </tr>`).join('');
+  </tr>`
+  }).join('');
+  
   tb.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openModal(b.dataset.edit)));
   tb.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => deleteTx(b.dataset.del)));
+  
+  const rows = tb.querySelectorAll('tr');
+  const checkboxes = tb.querySelectorAll('.chk-row');
+  
+  checkboxes.forEach((chk, idx) => {
+    chk.addEventListener('click', (e) => {
+      const id = chk.dataset.id;
+      if (e.shiftKey && lastCheckedId !== null) {
+        let start = -1, end = -1;
+        checkboxes.forEach((c, i) => {
+          if (c.dataset.id === lastCheckedId) start = i;
+          if (c === chk) end = i;
+        });
+        if (start !== -1 && end !== -1) {
+          const min = Math.min(start, end), max = Math.max(start, end);
+          for (let i = min; i <= max; i++) {
+            const c = checkboxes[i];
+            c.checked = chk.checked;
+            if (c.checked) selectedTxs.add(c.dataset.id);
+            else selectedTxs.delete(c.dataset.id);
+            rows[i].classList.toggle('selected', c.checked);
+          }
+        }
+      } else {
+        if (chk.checked) selectedTxs.add(id);
+        else selectedTxs.delete(id);
+        rows[idx].classList.toggle('selected', chk.checked);
+      }
+      lastCheckedId = id;
+      updateBulkBar();
+      $('#chk-all').checked = selectedTxs.size === f.length && f.length > 0;
+    });
+  });
 }
+
+// ── BULK ACTIONS ──
+$('#chk-all').addEventListener('click', (e) => {
+  const checked = e.target.checked;
+  const f = getFiltered();
+  selectedTxs.clear();
+  if (checked) f.forEach(t => selectedTxs.add(t.id));
+  renderTx();
+});
+
+function updateBulkBar() {
+  const bar = $('#bulk-bar');
+  const count = selectedTxs.size;
+  if (count > 0) {
+    bar.hidden = false;
+    $('#bulk-count').textContent = `${count} selecionada${count>1?'s':''}`;
+    if ($('#bulk-cat').innerHTML.length < 50) {
+      $('#bulk-cat').innerHTML = '<option value="">Categorizar como...</option>' + ALL_CATS.map(c=>`<option>${esc(c)}</option>`).join('');
+    }
+  } else {
+    bar.hidden = true;
+    $('#bulk-cat').value = '';
+  }
+}
+
+$('#btn-bulk-del').addEventListener('click', () => {
+  if (!confirm(`Excluir ${selectedTxs.size} transações?`)) return;
+  transactions = transactions.filter(t => !selectedTxs.has(t.id));
+  selectedTxs.clear();
+  persist(); populateFilters(); renderAll(); toast('Transações excluídas');
+});
+
+$('#bulk-cat').addEventListener('change', (e) => {
+  const cat = e.target.value;
+  if (!cat) return;
+  
+  transactions.forEach(t => {
+    if (selectedTxs.has(t.id)) {
+      t.cat = cat;
+      if (INCOME_CATS.includes(cat)) t.type = 'income';
+      else if (EXPENSE_CATS.includes(cat)) t.type = 'expense';
+    }
+  });
+  
+  selectedTxs.clear();
+  e.target.value = '';
+  persist(); populateFilters(); renderAll(); toast('Categorias atualizadas');
+});
 
 $$('#tx-table th.sortable').forEach(th => th.addEventListener('click', () => {
   const col = th.dataset.sort;
@@ -725,6 +836,9 @@ $('#btn-confirm-import').addEventListener('click', () => {
     return !existing.has(`${t.date}|${t.desc}|${t.amount}`);
   });
   const dupes = pendingTxs.length - fresh.length - old;
+  const acc = $('#import-account').value;
+  if (acc) fresh.forEach(t => t.account = acc);
+  
   transactions.push(...fresh);
   pendingTxs = []; $('#preview-card').hidden = true;
   persist(); populateFilters(); renderAll();
