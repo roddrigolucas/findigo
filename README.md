@@ -20,6 +20,8 @@ extratos bancários e controle mensal de receitas e despesas.
 - **Lançamento manual** — receitas e despesas, realizadas ou previstas.
 - **Retenção** — 24 meses de histórico, aplicada tanto na gravação quanto na leitura.
 - **Exportação CSV** do período filtrado.
+- **Open Finance** — conecta bancos via Pluggy/MeuPluggy e importa extrato e
+  movimentações automaticamente (a cada 4 h e ao abrir o app), sem duplicar.
 
 ## Arquitetura
 
@@ -33,6 +35,10 @@ netlify/functions/
   _lib.mjs       hash de senha, tokens de sessão, acesso ao Netlify Blobs
   auth.mjs       POST /api/auth  — login, sessão, usuários, troca de senha
   data.mjs       GET/PUT/DELETE /api/data — transações do usuário logado
+  _openfinance.mjs   cliente Pluggy, mapeamento de categorias, sincronização
+  openfinance.mjs    POST /api/openfinance — conectar, vincular, sincronizar
+  openfinance-cron.mjs  sincronização agendada (cron 23 */4 * * * UTC)
+public/openfinance.js   painel "Open Finance" na aba Importar
 ```
 
 Persistência em **Netlify Blobs** (`users` e `userdata`). Nenhuma senha é
@@ -45,6 +51,22 @@ armazenada em texto puro e nenhuma credencial fica no código do front-end.
 | `SESSION_SECRET` | Chave HMAC para assinar os tokens de sessão (secreta). |
 | `ADMIN_USER`     | Usuário administrador criado no primeiro acesso.       |
 | `ADMIN_PASSWORD` | Senha inicial do administrador (secreta).              |
+| `PLUGGY_CLIENT_ID` | Client ID da aplicação na Pluggy (Open Finance).     |
+| `PLUGGY_CLIENT_SECRET` | Client Secret da Pluggy (secreta).               |
+| `PLUGGY_INCLUDE_SANDBOX` | `1` mostra os bancos de teste da Pluggy no widget. |
+
+## Open Finance
+
+1. Crie a conta em <https://meu.pluggy.ai> e conecte seus bancos (gratuito).
+2. Em <https://dashboard.pluggy.ai>, inclua o conector **MeuPluggy** e crie uma
+   aplicação para obter Client ID/Secret; cadastre-os no Netlify e publique.
+3. No FinNexus, aba **Importar → Conectar banco** → escolha **MeuPluggy** e
+   autorize cada banco. Depois vincule cada conta do banco a uma conta ou cartão.
+
+Cada movimentação recebe o id `of_<id Pluggy>`: nunca duplica, uma excluída por
+você não volta, e lançamentos pendentes são atualizados quando confirmados.
+A data "a partir de" começa no dia seguinte ao último extrato já importado.
+Teste: `node ofsmoke.mjs` (Pluggy simulada + Blobs local + Chromium).
 
 O administrador é criado automaticamente na primeira chamada a `/api/auth`.
 Depois disso, altere a senha pelo próprio sistema (aba **Usuários**).

@@ -29,6 +29,7 @@ const server = http.createServer(async (req, res) => {
     if (b.action === 'list_users') return send(200, { users:[{...USER, active:true, lastLogin:new Date().toISOString()}] });
     return send(200, { ok:true });
   }
+  if (req.url === '/api/openfinance') return send(200, { configured:false, items:[], lastSync:null });
   if (req.url === '/api/data'){
     if (req.method === 'GET') return send(200, DB);
     let raw=''; for await (const c of req) raw += c;
@@ -43,7 +44,7 @@ const server = http.createServer(async (req, res) => {
 await new Promise(r => server.listen(8899, r));
 
 // ── navegador ────────────────────────────────────────────────
-const browser = await chromium.launch();
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const page = await browser.newPage({ viewport:{ width:1400, height:1000 } });
 
 const errors = [];

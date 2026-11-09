@@ -18,7 +18,7 @@ const srv=http.createServer(async(req,res)=>{
 });
 await new Promise(r=>srv.listen(8898,r));
 
-const browser=await chromium.launch();
+const browser=await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 // Xiaomi 14: ~1200x2670 físico, ~393x852 CSS @3x
 const ctx=await browser.newContext({viewport:{width:393,height:852},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:devices['Pixel 7'].userAgent});
 const page=await ctx.newPage();

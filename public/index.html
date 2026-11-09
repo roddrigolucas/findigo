@@ -44,6 +44,9 @@
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="summary">Resumo</button>
       <button class="tab" data-tab="monthly">Controle Mensal</button>
+      <button class="tab" data-tab="accounts">Contas</button>
+      <button class="tab" data-tab="cards">Cartões</button>
+      <button class="tab" data-tab="investments">Investimentos</button>
       <button class="tab" data-tab="transactions">Transações</button>
       <button class="tab" data-tab="import">Importar</button>
       <button class="tab" data-tab="users" id="tab-users" hidden>Usuários</button>
@@ -99,63 +102,58 @@
   </div>
 
   <!-- ── TAB: RESUMO ── -->
-  <section id="panel-summary">
-    <div class="kpi-grid">
-      <div class="kpi big" style="--kc:var(--neon-cyan)">
-        <div class="k-label">Saldo Líquido Disponível</div>
-        <div class="k-value" id="k-net">R$ 0,00</div>
-        <div class="k-sub" id="k-net-sub">receitas realizadas − despesas realizadas</div>
-      </div>
-      <div class="kpi" style="--kc:var(--neon-lime)">
-        <div class="k-label">Receitas Previstas do Mês</div>
-        <div class="k-value" id="k-inc-fc">R$ 0,00</div>
-        <div class="k-sub" id="k-inc-fc-sub">a receber</div>
-      </div>
-      <div class="kpi" style="--kc:var(--neon-pink)">
-        <div class="k-label">Despesas Previstas do Mês</div>
-        <div class="k-value" id="k-exp-fc">R$ 0,00</div>
-        <div class="k-sub" id="k-exp-fc-sub">a pagar</div>
-      </div>
-      <div class="kpi" style="--kc:var(--neon-amber)">
-        <div class="k-label">Saldo Projetado do Mês</div>
-        <div class="k-value" id="k-proj">R$ 0,00</div>
-        <div class="k-sub">disponível + previsto</div>
-      </div>
+  <section id="panel-summary" class="dash">
+    <div class="dash-top">
+      <article class="dash-hero">
+        <p class="dash-k">Disponível agora</p>
+        <p class="dash-big" id="k-net">R$ 0,00</p>
+        <p class="dash-say" id="k-say">Até o fim do mês ainda entram <b id="k-inc-fc">R$ 0,00</b> e saem <b id="k-exp-fc">R$ 0,00</b>. Você deve fechar o mês com <b id="k-proj">R$ 0,00</b>.</p>
+        <div class="dash-bars">
+          <div class="dash-bar" id="bar-inc">
+            <div class="dash-bar-h"><span>Receitas do mês</span><span class="dash-bar-v"></span></div>
+            <div class="dash-track"><i class="done"></i><i class="todo"></i></div>
+          </div>
+          <div class="dash-bar out" id="bar-exp">
+            <div class="dash-bar-h"><span>Despesas do mês</span><span class="dash-bar-v"></span></div>
+            <div class="dash-track"><i class="done"></i><i class="todo"></i></div>
+          </div>
+          <p class="dash-key"><span class="sw done"></span>realizado <span class="sw todo"></span>previsto</p>
+        </div>
+      </article>
+      <aside class="dash-alerts">
+        <h3>Pede atenção</h3>
+        <ul id="dash-alerts"></ul>
+      </aside>
     </div>
 
-    <div class="kpi-grid">
-      <div class="kpi" style="--kc:var(--neon-lime)">
-        <div class="k-label">Receitas no Período</div>
-        <div class="k-value" id="k-inc">R$ 0,00</div>
-        <div class="k-sub" id="k-inc-sub">—</div>
-      </div>
-      <div class="kpi" style="--kc:var(--neon-pink)">
-        <div class="k-label">Despesas no Período</div>
-        <div class="k-value" id="k-exp">R$ 0,00</div>
-        <div class="k-sub" id="k-exp-sub">—</div>
-      </div>
-      <div class="kpi" style="--kc:var(--neon-violet)">
-        <div class="k-label">Média Mensal de Gastos</div>
-        <div class="k-value" id="k-avg">R$ 0,00</div>
-        <div class="k-sub" id="k-avg-sub">—</div>
-      </div>
+    <div class="dash-worth">
+      <div><p class="dash-k">Em contas</p><p class="dash-num" id="k-acc">R$ 0,00</p><p class="dash-sub" id="k-acc-sub"></p></div>
+      <div><p class="dash-k">Investido</p><p class="dash-num" id="k-iv">R$ 0,00</p><p class="dash-sub" id="k-iv-sub"></p></div>
+      <div><p class="dash-k">Cartões a pagar</p><p class="dash-num" id="k-cc">R$ 0,00</p><p class="dash-sub" id="k-cc-sub"></p></div>
+      <div class="dash-worth-total"><p class="dash-k">Patrimônio líquido</p><p class="dash-num" id="k-worth">R$ 0,00</p><p class="dash-sub">contas + investimentos − cartões</p></div>
     </div>
 
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title">Receitas × Despesas por mês</div>
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-card-h">
+          <h3>Fluxo mensal</h3>
+          <dl class="dash-tot">
+            <div><dt>Receitas</dt><dd class="pos" id="k-inc">R$ 0,00</dd></div>
+            <div><dt>Despesas</dt><dd class="neg" id="k-exp">R$ 0,00</dd></div>
+            <div><dt>Média de gastos</dt><dd id="k-avg">R$ 0,00</dd></div>
+          </dl>
+        </div>
         <div class="chart-box"><canvas id="c-monthly" height="300"></canvas></div>
       </div>
-      <div class="card">
-        <div class="card-title">Despesas por categoria</div>
-        <div class="chart-box"><canvas id="c-donut" height="230"></canvas></div>
-        <div class="legend" id="donut-legend"></div>
+      <div class="dash-card">
+        <div class="dash-card-h"><h3>Para onde foi o dinheiro</h3><span class="dash-sub" id="cat-period"></span></div>
+        <ol class="dash-cats" id="cat-bars"></ol>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Próximos lançamentos previstos</div>
-      <div class="tbl-wrap"><table id="upcoming-tbl"><tbody></tbody></table></div>
+    <div class="dash-card">
+      <div class="dash-card-h"><h3>Próximos lançamentos</h3><span class="dash-sub">previstos e faturas a vencer</span></div>
+      <div class="tbl-wrap"><table id="upcoming-tbl" class="dash-up"><tbody></tbody></table></div>
     </div>
   </section>
 
@@ -164,41 +162,216 @@
     <div class="month-grid" id="month-grid"></div>
   </section>
 
+  <!-- ── TAB: CONTAS ── -->
+  <section id="panel-accounts" hidden>
+    <div class="acc-hero">
+      <div>
+        <div class="k-label">Saldo total em contas</div>
+        <div class="acc-total" id="acc-total">R$ 0,00</div>
+        <div class="k-sub" id="acc-total-sub">—</div>
+      </div>
+      <div class="acc-hero-actions">
+        <button class="btn-ghost" id="btn-acc-transfer">⇄ Transferir</button>
+        <button class="btn-ghost" id="btn-acc-new">+ Nova conta</button>
+      </div>
+    </div>
+    <div class="acc-grid" id="acc-grid"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title" id="acc-hist-title">Movimentações da conta</div>
+      <div class="tbl-wrap"><table id="acc-hist"><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ── TAB: CARTÕES ── -->
+  <section id="panel-cards" hidden>
+    <div class="cc2-hero">
+      <div class="cc2-hero-lab"><svg class="ico" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 7v10M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.4 5 4.1 0 1.1-1.1 1.9-2.5 1.9-1.2 0-2.2-.5-2.7-1.4"/></svg>Fatura atual</div>
+      <div class="cc2-hero-val" id="cc-total">R$ 0,00</div>
+      <div class="cc2-hero-sub" id="cc-total-sub">—</div>
+    </div>
+    <div class="cc2-sec-head">
+      <span class="cc2-sec-ico"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></span>
+      <span class="cc2-sec-title">Seus cartões</span><span class="cc2-sec-count" id="cc-count">(0)</span>
+      <div class="cc2-sec-actions">
+        <button class="tx2-btn" id="btn-cc-buy">+ Compra no cartão</button>
+        <button class="tx2-btn" id="btn-cc-new">+ Novo cartão</button>
+      </div>
+    </div>
+    <div class="cc2-grid" id="cc-grid"></div>
+    <div class="grid-2 cc-detail" style="margin-top:22px">
+      <div class="card">
+        <div class="card-title" id="cc-inv-title">Faturas</div>
+        <div class="inv-nav" id="cc-inv-nav"></div>
+        <div class="tbl-wrap"><table id="cc-inv-tbl"><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Próximas faturas</div>
+        <div id="cc-next"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TAB: INVESTIMENTOS ── -->
+  <section id="panel-investments" hidden>
+    <div class="acc-hero inv-hero">
+      <div class="hero-stats">
+        <div>
+          <div class="k-label">Patrimônio investido</div>
+          <div class="acc-total" id="iv-total">R$ 0,00</div>
+          <div class="k-sub" id="iv-total-sub">—</div>
+        </div>
+        <div>
+          <div class="k-label">Rendimento acumulado</div>
+          <div class="acc-total sm" id="iv-gain">R$ 0,00</div>
+          <div class="k-sub" id="iv-gain-sub">—</div>
+        </div>
+      </div>
+      <div class="acc-hero-actions">
+        <button class="btn-ghost" id="btn-iv-new">+ Novo investimento</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Alocação por tipo</div>
+      <div class="alloc-bar" id="iv-alloc-bar"></div>
+      <div class="alloc-legend" id="iv-alloc-legend"></div>
+    </div>
+    <div class="acc-grid" id="iv-grid"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-title" id="iv-hist-title">Movimentações de investimentos</div>
+      <div class="tbl-wrap"><table id="iv-hist"><tbody></tbody></table></div>
+    </div>
+  </section>
+
   <!-- ── TAB: TRANSAÇÕES ── -->
   <section id="panel-transactions" hidden>
-    <div class="card">
-      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-        <span id="tx-count">Transações</span>
+    <div class="tx2-toolbar">
+      <label class="tx2-ctl tx2-period">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <select id="tx-period" aria-label="Período">
+          <option value="this">Este mês</option>
+          <option value="last">Mês passado</option>
+          <option value="3">Últimos 3 meses</option>
+          <option value="6">Últimos 6 meses</option>
+          <option value="12">Últimos 12 meses</option>
+          <option value="year">Este ano</option>
+          <option value="next">Próximo mês</option>
+          <option value="all">Tudo</option>
+          <option value="custom">Personalizado…</option>
+        </select>
+      </label>
+      <div class="tx2-custom" id="tx-custom" hidden>
+        <input type="date" id="tx-from" aria-label="De"><span>–</span><input type="date" id="tx-to" aria-label="Até">
       </div>
-      
+      <label class="tx2-ctl"><select id="tx-acc" aria-label="Conta"><option value="">Todas Contas</option></select></label>
+      <label class="tx2-ctl"><select id="tx-type" aria-label="Tipo">
+        <option value="">Todas Transações</option>
+        <option value="expense">Despesas</option>
+        <option value="income">Receitas</option>
+        <option value="transfer">Transferências</option>
+        <option value="card">Compras no cartão</option>
+        <option value="pending">Previstas</option>
+        <option value="paid">Realizadas</option>
+      </select></label>
+      <label class="tx2-ctl"><select id="tx-sort" aria-label="Ordenação">
+        <option value="date:-1">Data (mais recentes)</option>
+        <option value="date:1">Data (mais antigas)</option>
+        <option value="amount:-1">Valor (maior)</option>
+        <option value="amount:1">Valor (menor)</option>
+        <option value="desc:1">Descrição (A–Z)</option>
+        <option value="cat:1">Categoria (A–Z)</option>
+      </select></label>
+      <label class="tx2-ctl"><select id="tx-cat" aria-label="Categoria"><option value="">Categorias</option></select></label>
+      <label class="tx2-toggle">
+        <input type="checkbox" id="tx-show-hidden"><span class="tx2-sw"></span>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Mostrar ocultos
+      </label>
+    </div>
+
+    <div class="tx2-kpis">
+      <div class="tx2-kpi"><span class="tx2-kico"><svg class="ico" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10 3 8 21M16 3l-2 18"/></svg></span>
+        <div><div class="tx2-klab">Total</div><div class="tx2-kval" id="tx-k-count">0</div></div></div>
+      <div class="tx2-kpi"><span class="tx2-kico neg"><svg class="ico" viewBox="0 0 24 24"><path d="m3 7 6 6 4-4 8 8M21 11v6h-6"/></svg></span>
+        <div><div class="tx2-klab">Despesas</div><div class="tx2-kval neg" id="tx-k-exp">R$ 0,00</div></div></div>
+      <div class="tx2-kpi"><span class="tx2-kico pos"><svg class="ico" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8M21 13V7h-6"/></svg></span>
+        <div><div class="tx2-klab">Receitas</div><div class="tx2-kval pos" id="tx-k-inc">R$ 0,00</div></div></div>
+      <div class="tx2-kpi"><span class="tx2-kico" id="tx-k-bal-ico"><svg class="ico" viewBox="0 0 24 24"><path d="M7 12h10M7 12l3-3M7 12l3 3M17 12l-3-3M17 12l-3 3"/></svg></span>
+        <div><div class="tx2-klab">Saldo</div><div class="tx2-kval" id="tx-k-bal">R$ 0,00</div></div></div>
+    </div>
+
+    <div class="tx2-card">
+      <div class="tx2-head">
+        <label class="tx2-search">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="tx-search" placeholder="Buscar transações..." autocomplete="off">
+        </label>
+        <button class="tx2-btn" id="btn-tx-new"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova Transação</button>
+      </div>
+
       <div class="bulk-bar" id="bulk-bar" hidden>
         <span id="bulk-count">0 selecionadas</span>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
           <select id="bulk-cat"><option value="">Categorizar como...</option></select>
+          <button class="btn-ghost" id="btn-bulk-hide">Ocultar</button>
           <button class="btn-danger" id="btn-bulk-del">Excluir</button>
         </div>
       </div>
 
       <div class="tbl-wrap">
-        <table id="tx-table">
+        <table id="tx-table" class="tx2-table">
           <thead><tr>
-            <th class="chk-col"><input type="checkbox" id="chk-all"></th>
-            <th class="sortable" data-sort="date">Data</th>
+            <th class="chk-col"><input type="checkbox" id="chk-all" aria-label="Selecionar todas"></th>
             <th class="sortable" data-sort="desc">Descrição</th>
             <th class="sortable" data-sort="cat">Categoria</th>
             <th>Conta</th>
-            <th>Situação</th>
+            <th class="sortable" data-sort="date">Data</th>
             <th class="sortable num" data-sort="amount">Valor</th>
-            <th></th>
+            <th class="act-col"></th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
+      <div class="tx2-more" id="tx-more" hidden><button class="tx2-btn" id="btn-tx-more">Mostrar mais</button></div>
+      <span id="tx-count" hidden></span>
     </div>
+    <div class="tx2-menu" id="tx-menu" hidden></div>
   </section>
 
   <!-- ── TAB: IMPORTAR ── -->
   <section id="panel-import" hidden>
+    <div class="card of-card" id="of-card" style="margin-bottom:16px">
+      <div class="of-head">
+        <div>
+          <div class="card-title" style="margin-bottom:4px">🏦 Open Finance — bancos conectados</div>
+          <div class="of-sub" id="of-sub">Conecte seus bancos e as movimentações chegam sozinhas.</div>
+        </div>
+        <div class="of-actions">
+          <button class="btn-ghost of-btn" id="of-sync" hidden>⟳ Sincronizar agora</button>
+          <button class="btn-primary" id="of-connect" style="width:auto" hidden>+ Conectar banco</button>
+        </div>
+      </div>
+      <div class="of-setup" id="of-setup" hidden>
+        <p><b>Falta configurar a chave da Pluggy no servidor.</b> O Open Finance é regulado pelo Banco Central, então a conexão passa por um agregador autorizado — aqui, a <a href="https://pluggy.ai" target="_blank" rel="noopener">Pluggy</a>, que tem o <b>MeuPluggy</b> gratuito para uso pessoal.</p>
+        <ol>
+          <li>Em <a href="https://meu.pluggy.ai" target="_blank" rel="noopener">meu.pluggy.ai</a>, crie a conta e conecte seus bancos pelo Open Finance.</li>
+          <li>Em <a href="https://dashboard.pluggy.ai" target="_blank" rel="noopener">dashboard.pluggy.ai</a>, crie a conta de desenvolvedor, inclua o conector <b>MeuPluggy</b> na lista de conectores e crie uma aplicação para obter <code>Client ID</code> e <code>Client Secret</code>.</li>
+          <li>Cole abaixo o Client ID e o Client Secret (ou cadastre <code>PLUGGY_CLIENT_ID</code> e <code>PLUGGY_CLIENT_SECRET</code> no Netlify).</li>
+        </ol>
+        <form class="of-cred" id="of-cred" hidden autocomplete="off">
+          <input id="of-cid" placeholder="Client ID" spellcheck="false">
+          <input id="of-csec" type="password" placeholder="Client Secret" spellcheck="false" autocomplete="new-password">
+          <button class="btn-primary of-btn" style="width:auto" type="submit">Salvar e validar</button>
+        </form>
+      </div>
+      <div id="of-list"></div>
+      <details class="of-manual" id="of-manual" hidden>
+        <summary>Já tem o Item ID de uma conexão (ex.: do app Demo da Pluggy)? Adicionar manualmente</summary>
+        <div class="of-manual-row">
+          <input id="of-item-id" placeholder="Item ID — ex.: 3f1c2b9e-…" autocomplete="off" spellcheck="false">
+          <button class="btn-ghost of-btn" id="of-add">Adicionar</button>
+        </div>
+      </details>
+      <div class="status" id="of-status"></div>
+    </div>
     <div class="card" style="margin-bottom:16px">
       <div class="card-title">Importar extrato bancário</div>
       <div class="drop" id="drop">
@@ -282,7 +455,7 @@
         <select id="m-status"><option value="paid">Realizada</option><option value="pending">Prevista</option></select>
       </div>
     </div>
-    <div class="field"><label for="m-account">Conta</label><select id="m-account"></select></div>
+    <div class="field"><label for="m-account">Conta / Cartão</label><select id="m-account"></select></div>
     <div class="modal-actions">
       <button type="button" class="btn-danger" id="btn-del" hidden>Excluir</button>
       <button type="button" class="btn-ghost" id="btn-close">Cancelar</button>
@@ -293,8 +466,136 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ══ MODAL CONTAS ═══════════════════════════════════════ -->
+<div class="overlay" id="acc-overlay" hidden>
+  <form class="modal" id="acc-form">
+    <h2 id="acc-title">Operação</h2>
+    <div class="seg" id="acc-seg">
+      <button type="button" data-op="in">Inserir</button>
+      <button type="button" data-op="out">Retirar</button>
+      <button type="button" data-op="transfer">Transferir</button>
+      <button type="button" data-op="edit">Conta</button>
+    </div>
+    <div id="acc-op-fields">
+      <div class="frow">
+        <div class="field"><label for="a-from" id="a-from-lab">Conta</label><select id="a-from"></select></div>
+        <div class="field" id="a-to-wrap"><label for="a-to">Para</label><select id="a-to"></select></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label for="a-date">Data</label><input type="date" id="a-date"></div>
+        <div class="field"><label for="a-amount">Valor (R$)</label><input type="number" id="a-amount" step="0.01" min="0"></div>
+      </div>
+      <div class="field"><label for="a-desc">Descrição</label><input id="a-desc" maxlength="240" placeholder="opcional"></div>
+    </div>
+    <div id="acc-edit-fields" hidden>
+      <div class="frow">
+        <div class="field"><label for="a-name">Nome da conta</label><input id="a-name" maxlength="60"></div>
+        <div class="field"><label for="a-initial">Saldo inicial (R$)</label><input type="number" id="a-initial" step="0.01"></div>
+      </div>
+      <div class="field"><label for="a-color">Cor</label><input type="color" id="a-color" value="#00E5FF"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="a-del" hidden>Excluir conta</button>
+      <button type="button" class="btn-ghost" id="a-close">Cancelar</button>
+      <button type="submit" class="btn-primary" style="width:auto">Salvar</button>
+    </div>
+  </form>
+</div>
+
+<!-- ══ MODAL CARTÕES ══════════════════════════════════════ -->
+<div class="overlay" id="cc-overlay" hidden>
+  <form class="modal" id="cc-form">
+    <h2 id="cc-title">Cartão</h2>
+    <div id="cc-buy-fields">
+      <div class="frow">
+        <div class="field"><label for="c-card">Cartão</label><select id="c-card"></select></div>
+        <div class="field"><label for="c-date">Data da compra</label><input type="date" id="c-date"></div>
+      </div>
+      <div class="field"><label for="c-desc">Descrição</label><input id="c-desc" maxlength="200"></div>
+      <div class="frow">
+        <div class="field"><label for="c-amount">Valor total (R$)</label><input type="number" id="c-amount" step="0.01" min="0"></div>
+        <div class="field"><label for="c-parc">Parcelas</label><input type="number" id="c-parc" min="1" max="48" value="1"></div>
+      </div>
+      <div class="field"><label for="c-cat">Categoria</label><select id="c-cat"></select></div>
+      <div class="hint" id="c-hint"></div>
+    </div>
+    <div id="cc-pay-fields" hidden>
+      <div class="field"><label for="p-from">Pagar com a conta</label><select id="p-from"></select></div>
+      <div class="frow">
+        <div class="field"><label for="p-date">Data do pagamento</label><input type="date" id="p-date"></div>
+        <div class="field"><label for="p-amount">Valor (R$)</label><input type="number" id="p-amount" step="0.01" min="0"></div>
+      </div>
+      <div class="hint" id="p-hint"></div>
+    </div>
+    <div id="cc-edit-fields" hidden>
+      <div class="frow">
+        <div class="field"><label for="e-name">Nome do cartão</label><input id="e-name" maxlength="60" placeholder="ex.: Nubank Roxinho"></div>
+        <div class="field"><label for="e-limit">Limite (R$)</label><input type="number" id="e-limit" step="0.01" min="0"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label for="e-close">Dia de fechamento</label><input type="number" id="e-close" min="1" max="31" value="1"></div>
+        <div class="field"><label for="e-due">Dia de vencimento</label><input type="number" id="e-due" min="1" max="31" value="10"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label for="e-payfrom">Conta que paga a fatura</label><select id="e-payfrom"></select></div>
+        <div class="field"><label for="e-color">Cor</label><input type="color" id="e-color" value="#A472FF"></div>
+      </div>
+      <div class="field"><label for="e-last4">Final do cartão (4 dígitos, opcional)</label><input id="e-last4" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="ex.: 6025"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="cc-del" hidden>Excluir cartão</button>
+      <button type="button" class="btn-ghost" id="cc-close">Cancelar</button>
+      <button type="submit" class="btn-primary" style="width:auto" id="cc-submit">Salvar</button>
+    </div>
+  </form>
+</div>
+
+<!-- ══ MODAL INVESTIMENTOS ════════════════════════════════ -->
+<div class="overlay" id="iv-overlay" hidden>
+  <form class="modal" id="iv-form">
+    <h2 id="iv-title">Investimento</h2>
+    <div class="seg" id="iv-seg">
+      <button type="button" data-op="aporte">Aportar</button>
+      <button type="button" data-op="resgate">Resgatar</button>
+      <button type="button" data-op="valor">Atualizar valor</button>
+    </div>
+    <div id="iv-op-fields">
+      <div class="frow">
+        <div class="field"><label for="i-inv">Investimento</label><select id="i-inv"></select></div>
+        <div class="field" id="i-acc-wrap"><label for="i-acc" id="i-acc-lab">Conta de origem</label><select id="i-acc"></select></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label for="i-date">Data</label><input type="date" id="i-date"></div>
+        <div class="field"><label for="i-amount" id="i-amount-lab">Valor (R$)</label><input type="number" id="i-amount" step="0.01" min="0"></div>
+      </div>
+      <div class="hint" id="i-hint"></div>
+    </div>
+    <div id="iv-edit-fields" hidden>
+      <div class="frow">
+        <div class="field"><label for="v-name">Nome</label><input id="v-name" maxlength="60" placeholder="ex.: CDB Inter 110% CDI"></div>
+        <div class="field"><label for="v-type">Tipo</label><select id="v-type"></select></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label for="v-inst">Instituição</label><input id="v-inst" maxlength="60" placeholder="ex.: Inter, XP, Nubank"></div>
+        <div class="field"><label for="v-color">Cor</label><input type="color" id="v-color" value="#00E5FF"></div>
+      </div>
+      <div class="frow" id="v-initial-row">
+        <div class="field"><label for="v-initial">Valor já aplicado (R$)</label><input type="number" id="v-initial" step="0.01" min="0" value="0"></div>
+        <div class="field"><label for="v-current">Valor atual (R$)</label><input type="number" id="v-current" step="0.01" min="0" value="0"></div>
+      </div>
+      <div class="hint">“Valor já aplicado” é o que você investiu antes de usar o FinNexus — não sai de nenhuma conta.</div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="iv-del" hidden>Excluir</button>
+      <button type="button" class="btn-ghost" id="iv-close">Cancelar</button>
+      <button type="submit" class="btn-primary" style="width:auto">Salvar</button>
+    </div>
+  </form>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="/parsers.js"></script>
 <script src="/app.js"></script>
+<script src="/openfinance.js"></script>
 </body>
 </html>

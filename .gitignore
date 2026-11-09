@@ -4,3 +4,8 @@ node_modules/
 .env.*
 *.log
 .DS_Store
+# dados pessoais e artefatos locais — nunca versionar
+*.pdf
+*.zip
+_backup*/
+_tmp/
