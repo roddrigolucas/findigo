@@ -153,7 +153,7 @@ check('pagamento recebido no cartão = transferência', db.transactions.find(t =
 // igualar saldo da conta ao banco
 const hasFix = await page.$('button[data-fix]');
 if (hasFix) { await hasFix.click(); await page.waitForSelector('.of-ok'); }
-check('saldo FinNexus igual ao do banco', !!(await page.$('.of-ok')));
+check('saldo FinDigo igual ao do banco', !!(await page.$('.of-ok')));
 
 // sincronizar de novo → nada novo
 await page.click('#of-sync');

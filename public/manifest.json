@@ -1,6 +1,6 @@
 {
-  "name": "FinNexus — Gestão Financeira",
-  "short_name": "FinNexus",
+  "name": "FinDigo — Gestão Financeira",
+  "short_name": "FinDigo",
   "description": "Controle de receitas, despesas e importação de extratos bancários.",
   "start_url": "/",
   "scope": "/",

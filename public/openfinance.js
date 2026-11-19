@@ -1,4 +1,4 @@
-/* ══ FinNexus — Open Finance (Pluggy) ═════════════════════════
+/* ══ FinDigo — Open Finance (Pluggy) ═════════════════════════
    Conecta bancos pelo Open Finance e importa movimentações
    automaticamente. As credenciais da Pluggy ficam no servidor;
    aqui só circulam tokens de conexão de curta duração.        */
@@ -41,7 +41,7 @@ function ofStatus(msg, type='info'){
 const fmtDT = (s) => { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
 const ofAccLabel = (a) => a.type === 'CREDIT' ? 'Cartão de crédito' : ({ CHECKING_ACCOUNT:'Conta corrente', SAVINGS_ACCOUNT:'Poupança' }[a.subtype] || 'Conta');
 
-// saldo do FinNexus para o destino vinculado (conta ou cartão)
+// saldo do FinDigo para o destino vinculado (conta ou cartão)
 function ofTargetBalance(a){
   const acc = accounts.find(x => sameName(x.name, a.target));
   if (acc) return { kind:'acc', ent:acc, value: accBalance(acc) };
@@ -99,7 +99,7 @@ function renderOF(){
         const d = r2(a.balance - tb.value);
         diff = Math.abs(d) < 0.01
           ? `<span class="of-ok">✓ saldos conferem</span>`
-          : `<span class="of-diff">FinNexus ${fmtBRL(tb.value)} <button class="of-link" data-fix="${esc(it.id)}|${esc(a.id)}" title="Ajusta o saldo inicial da conta para bater com o banco">igualar</button></span>`;
+          : `<span class="of-diff">FinDigo ${fmtBRL(tb.value)} <button class="of-link" data-fix="${esc(it.id)}|${esc(a.id)}" title="Ajusta o saldo inicial da conta para bater com o banco">igualar</button></span>`;
       }
       return `<tr>
         <td><div class="of-acc-name">${esc(a.name)}</div><div class="of-acc-sub">${ofAccLabel(a)}${a.number ? ' · ' + esc(a.number) : ''}</div></td>
@@ -209,7 +209,7 @@ async function ofOpenConnect(itemId, { allowDuplicate = false } = {}){
     try {
       ofState = { ...ofState, ...(await ofApi('add_item', { itemId: id })) };
       renderOF();
-      ofStatus('Banco conectado! Escolha abaixo para qual conta ou cartão do FinNexus cada conta do banco deve ser importada.', 'ok');
+      ofStatus('Banco conectado! Escolha abaixo para qual conta ou cartão do FinDigo cada conta do banco deve ser importada.', 'ok');
     } catch (e) { ofStatus(ofMsg(e), 'err'); }
   };
   try {
@@ -222,7 +222,7 @@ async function ofOpenConnect(itemId, { allowDuplicate = false } = {}){
       onEvent: (ev) => { if (ev?.item?.id) lastItemId = ev.item.id; },
       onSuccess: async (data) => { if (data?.item?.id) await addItem(data.item.id); },
       onError: async (err) => {
-        console.warn('[FinNexus] Pluggy Connect', err);
+        console.warn('[FinDigo] Pluggy Connect', err);
         // conexão já existente (ex.: tentativa anterior) — reaproveita em vez de bloquear
         const id = err?.data?.item?.id || lastItemId;
         if (id && /ALREADY_EXISTS|already/i.test(err?.message || '')) { await addItem(id); return; }
@@ -328,7 +328,7 @@ function ofInitUI(){
     }
     if (b.dataset.remove){
       const it = ofState.items.find(x => x.id === b.dataset.remove);
-      if (!confirm(`Remover a conexão com ${it?.connector.name || 'o banco'}? As movimentações já importadas continuam no FinNexus.`)) return;
+      if (!confirm(`Remover a conexão com ${it?.connector.name || 'o banco'}? As movimentações já importadas continuam no FinDigo.`)) return;
       const revoke = confirm('Também revogar o acesso na Pluggy? (OK = revogar · Cancelar = só parar de importar aqui)');
       try { ofState = { ...ofState, ...(await ofApi('remove_item', { itemId: it.id, revoke })) }; renderOF(); ofStatus('Conexão removida.', 'info'); }
       catch (err) { ofStatus(ofMsg(err), 'err'); }

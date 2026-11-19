@@ -1,4 +1,4 @@
-# FinNexus — Sistema de Gestão Financeira
+# FinDigo — Sistema de Gestão Financeira
 
 Aplicação web de controle financeiro pessoal com autenticação, importação de
 extratos bancários e controle mensal de receitas e despesas.
@@ -60,7 +60,7 @@ armazenada em texto puro e nenhuma credencial fica no código do front-end.
 1. Crie a conta em <https://meu.pluggy.ai> e conecte seus bancos (gratuito).
 2. Em <https://dashboard.pluggy.ai>, inclua o conector **MeuPluggy** e crie uma
    aplicação para obter Client ID/Secret; cadastre-os no Netlify e publique.
-3. No FinNexus, aba **Importar → Conectar banco** → escolha **MeuPluggy** e
+3. No FinDigo, aba **Importar → Conectar banco** → escolha **MeuPluggy** e
    autorize cada banco. Depois vincule cada conta do banco a uma conta ou cartão.
 
 Cada movimentação recebe o id `of_<id Pluggy>`: nunca duplica, uma excluída por

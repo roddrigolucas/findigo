@@ -44,6 +44,11 @@ export default async (req) => {
         transferId: String(t.transferId || "").slice(0, 40),
         ref: String(t.ref || "").slice(0, 20),
         ...(t.hidden ? { hidden: true } : {}),
+        ...(t.recurId ? {
+          recurId: String(t.recurId).slice(0, 40),
+          recurIdx: Math.max(1, Math.min(120, parseInt(t.recurIdx, 10) || 1)),
+          recurN: Math.max(1, Math.min(120, parseInt(t.recurN, 10) || 1)),
+        } : {}),
       })).filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.date))
     );
 

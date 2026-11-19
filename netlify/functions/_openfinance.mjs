@@ -4,7 +4,7 @@ import { dataStore, pruneToTwoYears } from "./_lib.mjs";
 
 const API = () => process.env.PLUGGY_API_URL || "https://api.pluggy.ai";
 // Credenciais: variáveis de ambiente do Netlify ou, na falta delas, o cadastro feito
-// pelo administrador no próprio FinNexus (Blobs, só no servidor — nunca volta ao navegador).
+// pelo administrador no próprio FinDigo (Blobs, só no servidor — nunca volta ao navegador).
 const CRED_KEY = "config/pluggy.json";
 export async function pluggyCreds() {
   if (process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET)
@@ -120,7 +120,7 @@ export function accountView(a, prev = {}) {
   };
 }
 
-// ── mapeamento de categoria Pluggy → FinNexus ───────────────
+// ── mapeamento de categoria Pluggy → FinDigo ───────────────
 const SELF_TRANSFER = /same person|mesma titularidade|entre contas/i;
 const CARD_PAYMENT = /credit card payment|pagamento de (cart|fatura)|fatura/i;
 
@@ -158,7 +158,7 @@ export function mapCategory(t, type) {
   return { cat: type === "income" ? "Outros Rendimentos" : "Outros", kind: "", auto: true };
 }
 
-export function toFinNexus(t, acc, nowIso) {
+export function toFinDigo(t, acc, nowIso) {
   const type = t.type === "CREDIT" ? "income" : "expense";
   const { cat, kind, auto } = mapCategory(t, type);
   let desc = String(t.description || t.descriptionRaw || "Movimentação").replace(/\s+/g, " ").trim();
@@ -221,7 +221,7 @@ export async function syncUser(user, { itemIds, deadline = Date.now() + 50000, c
       try {
         const list = await pg.transactions(acc.id, dateFrom, deadline);
         for (const t of list) {
-          const nt = toFinNexus(t, acc, nowIso);
+          const nt = toFinDigo(t, acc, nowIso);
           if (!/^\d{4}-\d{2}-\d{2}$/.test(nt.date) || nt.date < from || !nt.amount) continue;
           const cur = byId.get(nt.id);
           if (cur) {

@@ -1,8 +1,8 @@
-/* FinNexus service worker — casca offline.
+/* FinDigo service worker — casca offline.
    Regra central: NADA de /api/ é armazenado em cache.
    Dados financeiros e sessão sempre vêm da rede. */
 
-const VERSION = 'finnexus-v10';
+const VERSION = 'findigo-v11';
 const SHELL = [
   '/', '/index.html', '/app.css', '/app.js', '/parsers.js', '/openfinance.js',
   '/manifest.json', '/icon-192.png', '/icon-512.png',
