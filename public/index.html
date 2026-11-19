@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>FinNexus — Gestão Financeira</title>
+<title>FinDigo — Gestão Financeira</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#05060E">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="FinNexus">
+<meta name="apple-mobile-web-app-title" content="FinDigo">
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,7 +22,7 @@
 <!-- ══ LOGIN ══════════════════════════════════════════════ -->
 <div class="login-wrap" id="login-screen">
   <form class="login-card" id="login-form" autocomplete="on">
-    <div class="login-logo">FinNexus</div>
+    <div class="login-logo">FinDigo</div>
     <div class="login-sub">Sistema de Gestão Financeira</div>
     <div class="field">
       <label for="lg-user">Usuário</label>
@@ -40,7 +40,7 @@
 <!-- ══ APP ════════════════════════════════════════════════ -->
 <div class="shell" id="app" hidden>
   <header class="header">
-    <div class="brand">FinNexus</div>
+    <div class="brand">FinDigo</div>
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="summary">Resumo</button>
       <button class="tab" data-tab="monthly">Controle Mensal</button>
@@ -456,6 +456,15 @@
       </div>
     </div>
     <div class="field"><label for="m-account">Conta / Cartão</label><select id="m-account"></select></div>
+    <div class="recur-box" id="m-recur-box">
+      <label class="check"><input type="checkbox" id="m-recur"><span>Transação recorrente <small>(lançar uma vez por mês)</small></span></label>
+      <div class="field" id="m-recur-fields" hidden>
+        <label for="m-recur-n">Limite de recorrência (nº de meses, incluindo este)</label>
+        <input type="number" id="m-recur-n" min="2" max="120" value="12">
+      </div>
+      <label class="check" id="m-recur-apply-wrap" hidden><input type="checkbox" id="m-recur-apply" checked><span>Aplicar as alterações também às próximas ocorrências</span></label>
+      <div class="hint" id="m-recur-hint"></div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn-danger" id="btn-del" hidden>Excluir</button>
       <button type="button" class="btn-ghost" id="btn-close">Cancelar</button>
@@ -583,7 +592,7 @@
         <div class="field"><label for="v-initial">Valor já aplicado (R$)</label><input type="number" id="v-initial" step="0.01" min="0" value="0"></div>
         <div class="field"><label for="v-current">Valor atual (R$)</label><input type="number" id="v-current" step="0.01" min="0" value="0"></div>
       </div>
-      <div class="hint">“Valor já aplicado” é o que você investiu antes de usar o FinNexus — não sai de nenhuma conta.</div>
+      <div class="hint">“Valor já aplicado” é o que você investiu antes de usar o FinDigo — não sai de nenhuma conta.</div>
     </div>
     <div class="modal-actions">
       <button type="button" class="btn-danger" id="iv-del" hidden>Excluir</button>

@@ -1,4 +1,4 @@
-/* ══ FinNexus — app ═════════════════════════════════════════ */
+/* ══ FinDigo — app ═════════════════════════════════════════ */
 
 // ── Constantes ──────────────────────────────────────────────
 const INCOME_CATS  = ['Salário','Freelance/Negócios','Investimentos','Outros Rendimentos'];
@@ -170,9 +170,9 @@ async function loadData(){
     accounts = (Array.isArray(r.accounts) && r.accounts.length) ? r.accounts : DEFAULT_ACCOUNTS.map(a => ({...a}));
     cards = Array.isArray(r.cards) ? r.cards : [];
     investments = Array.isArray(r.investments) ? r.investments.map(v => ({ history:[], ...v })) : [];
-    // parcelas de cartão cuja data já chegou passam a "realizada" automaticamente
+    // parcelas de cartão e ocorrências recorrentes cuja data já chegou passam a "realizada" automaticamente
     const today = todayISO(); let promoted = 0;
-    transactions.forEach(t => { if (t.kind === 'card' && t.status === 'pending' && t.date <= today){ t.status = 'paid'; promoted++; } });
+    transactions.forEach(t => { if ((t.kind === 'card' || t.recurId) && t.status === 'pending' && t.date <= today){ t.status = 'paid'; promoted++; } });
     if (typeof trainBayes === 'function') trainBayes(transactions);
     setSync('ok');
     const recat = typeof ofRecategorize === 'function' ? ofRecategorize() : 0;
@@ -200,6 +200,7 @@ function normalize(t){
     transferId: t.transferId || '',
     ref: t.ref || '',
     hidden: !!t.hidden,
+    ...(t.recurId ? { recurId: t.recurId, recurIdx: Number(t.recurIdx) || 1, recurN: Number(t.recurN) || 1 } : {}),
   };
 }
 
@@ -558,6 +559,7 @@ function txTag(t){
   }
   const m = t.kind === 'card' && /\((\d+)\/(\d+)\)\s*$/.exec(t.desc);
   if (m) return { cls:'violet', ico:'🗓️', txt:`Parcela ${m[1]}/${m[2]}` };
+  if (t.recurId) return { cls:'violet', ico:'↻', txt:`Mensal ${t.recurIdx}/${t.recurN}${t.status === 'pending' ? ' · prevista' : ''}` };
   if (t.status === 'pending') return { cls:'amber', ico:'⏳', txt:'Prevista' };
   return null;
 }
@@ -822,6 +824,7 @@ $('#bulk-cat').addEventListener('change', (e) => {
 
 function deleteTx(id){
   const t = transactions.find(x => x.id === id);
+  if (t?.recurId){ if (deleteRecurring(t)){ persist(); populateFilters(); renderAll(); } return; }
   const group = t?.transferId ? transactions.filter(x => x.transferId === t.transferId) : [];
   const msg = t?.kind === 'transfer' ? 'Excluir esta transferência (as duas pontas)?'
     : t?.kind === 'card' && group.length > 1 ? `Excluir esta compra parcelada (todas as ${group.length} parcelas)?`
@@ -957,10 +960,12 @@ function openModal(id){
     $('#m-desc').value = t.desc; $('#m-cat').value = t.cat;
     ensureAccountOption(t.account);
     $('#m-account').value = t.account; $('#m-status').value = t.status;
+    setRecurUI(t);
   } else {
     setModalType('expense');
     $('#m-date').value = todayISO(); $('#m-amount').value = '';
     $('#m-desc').value = ''; $('#m-account').value = ''; $('#m-status').value = 'paid';
+    setRecurUI(null);
   }
   $('#modal-overlay').hidden = false;
   setTimeout(() => $('#m-amount').focus(), 40);
@@ -977,8 +982,9 @@ document.addEventListener('keydown', e => {
 
 $('#btn-del').addEventListener('click', () => {
   if (!editingId) return;
-  if (!confirm('Excluir esta transação?')) return;
   const t0 = transactions.find(t => t.id === editingId);
+  if (t0?.recurId){ if (deleteRecurring(t0)){ closeModal(); persist(); populateFilters(); renderAll(); } return; }
+  if (!confirm('Excluir esta transação?')) return;
   transactions = transactions.filter(t => t.id !== editingId && !(t0?.kind === 'transfer' && t.transferId === t0.transferId));
   closeModal(); persist(); populateFilters(); renderAll(); toast('Transação excluída');
 });
@@ -999,11 +1005,79 @@ $('#tx-form').addEventListener('submit', (e) => {
   const orig = editingId && transactions.find(t => t.id === editingId);
   if (orig){ tx.kind = orig.kind; tx.transferId = orig.transferId; tx.ref = orig.ref; tx.source = orig.source; tx.hidden = !!orig.hidden; }
   if (!tx.date || !tx.desc || tx.amount <= 0) return;
-  if (editingId) transactions = transactions.map(t => t.id === editingId ? tx : t);
+  let msg = editingId ? 'Transação atualizada' : 'Transação adicionada';
+  if (orig?.recurId){
+    // ocorrência de uma série recorrente
+    Object.assign(tx, { recurId: orig.recurId, recurIdx: orig.recurIdx, recurN: orig.recurN });
+    transactions = transactions.map(t => t.id === editingId ? tx : t);
+    if ($('#m-recur-apply').checked){
+      const day = Number(tx.date.slice(8,10)), today = todayISO();
+      let n = 0;
+      transactions.forEach(t => {
+        if (t.recurId !== tx.recurId || t.recurIdx <= tx.recurIdx) return;
+        t.desc = tx.desc; t.cat = tx.cat; t.type = tx.type; t.amount = tx.amount; t.account = tx.account;
+        t.date = dateIn(t.date.slice(0,7), day);
+        if (t.date > today) t.status = 'pending';
+        n++;
+      });
+      if (n) msg = `Transação e ${n} próxima${n > 1 ? 's' : ''} ocorrência${n > 1 ? 's' : ''} atualizada${n > 1 ? 's' : ''}`;
+    }
+  } else if (!tx.kind && $('#m-recur').checked){
+    // nova série recorrente: um lançamento por mês até o limite
+    const n = Math.max(2, Math.min(120, parseInt($('#m-recur-n').value, 10) || 2));
+    const rid = uid(), today = todayISO();
+    const series = [];
+    for (let i = 0; i < n; i++){
+      const d = addMonthsISO(tx.date, i);
+      series.push({ ...tx, id: i === 0 ? tx.id : uid(), date: d, recurId: rid, recurIdx: i + 1, recurN: n,
+        status: i === 0 ? tx.status : (d <= today ? tx.status : 'pending') });
+    }
+    if (editingId) transactions = transactions.filter(t => t.id !== editingId);
+    transactions.push(...series);
+    msg = `Transação recorrente lançada por ${n} meses (até ${monthLabel(series[n-1].date.slice(0,7))})`;
+  } else if (editingId) transactions = transactions.map(t => t.id === editingId ? tx : t);
   else transactions.push(tx);
   closeModal(); persist(); populateFilters(); renderAll();
-  toast(editingId ? 'Transação atualizada' : 'Transação adicionada');
+  toast(msg);
 });
+
+// ══ RECORRÊNCIA ═════════════════════════════════════════════
+function setRecurUI(t){
+  const box = $('#m-recur-box');
+  const rec = !!t?.recurId;
+  box.hidden = !!(t && t.kind);                       // transferências, cartão e ajustes não têm recorrência
+  $('#m-recur').checked = rec;
+  $('#m-recur').disabled = rec;
+  $('#m-recur-n').value = rec ? t.recurN : 12;
+  $('#m-recur-fields').hidden = true;
+  $('#m-recur-apply-wrap').hidden = !rec || !transactions.some(x => x.recurId === t.recurId && x.recurIdx > t.recurIdx);
+  $('#m-recur-apply').checked = true;
+  $('#m-recur-hint').textContent = rec ? `Ocorrência ${t.recurIdx} de ${t.recurN} desta série mensal.` : '';
+  updateRecurHint();
+}
+function updateRecurHint(){
+  if ($('#m-recur').disabled) return;
+  const on = $('#m-recur').checked;
+  $('#m-recur-fields').hidden = !on;
+  if (!on){ $('#m-recur-hint').textContent = ''; return; }
+  const n = Math.max(2, Math.min(120, parseInt($('#m-recur-n').value, 10) || 2));
+  const d = $('#m-date').value || todayISO();
+  const last = addMonthsISO(d, n - 1);
+  $('#m-recur-hint').textContent = `Será lançada ${n}× — uma vez por mês, de ${monthLabel(d.slice(0,7))} até ${monthLabel(last.slice(0,7))}. Os meses futuros entram como “Prevista”.`;
+}
+['#m-recur','#m-recur-n','#m-date'].forEach(sel => $(sel).addEventListener('input', updateRecurHint));
+$('#m-recur').addEventListener('change', updateRecurHint);
+
+// exclui uma ocorrência; oferece excluir também as próximas. Retorna true se algo foi removido.
+function deleteRecurring(t){
+  const next = transactions.filter(x => x.recurId === t.recurId && x.recurIdx > t.recurIdx);
+  if (!confirm(`Excluir esta transação recorrente (ocorrência ${t.recurIdx}/${t.recurN})?`)) return false;
+  let all = false;
+  if (next.length) all = confirm(`Excluir também as ${next.length} próxima${next.length > 1 ? 's' : ''} ocorrência${next.length > 1 ? 's' : ''}?\n\nOK = esta e as próximas · Cancelar = só esta`);
+  transactions = transactions.filter(x => x.id !== t.id && !(all && x.recurId === t.recurId && x.recurIdx > t.recurIdx));
+  toast(all ? `Recorrência encerrada (${next.length + 1} lançamentos excluídos)` : 'Ocorrência excluída');
+  return true;
+}
 
 // ══ IMPORTAÇÃO ══════════════════════════════════════════════
 function showStatus(msg, type='info'){
@@ -1129,7 +1203,7 @@ $('#btn-export').addEventListener('click', () => {
   const blob = new Blob(['﻿' + head + '\n' + rows.join('\n')], { type:'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `finnexus_${filters.from}_${filters.to}.csv`;
+  a.href = url; a.download = `findigo_${filters.from}_${filters.to}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
   toast('CSV exportado');
@@ -1285,6 +1359,7 @@ function kindLabel(t){
   if (t.kind === 'transfer') return cardOf(t) ? 'pag. fatura' : invOf(t) ? (t.type === 'income' ? 'aporte' : 'resgate') : 'transferência';
   if (t.kind === 'adjust') return 'manual';
   if (t.kind === 'card') return 'cartão';
+  if (t.recurId) return `recorrente ${t.recurIdx}/${t.recurN}`;
   return t.status === 'pending' ? 'prevista' : 'realizada';
 }
 

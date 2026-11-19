@@ -1,4 +1,4 @@
-/* ══ FinNexus — tema neon ═══════════════════════════════════ */
+/* ══ FinDigo — tema neon ═══════════════════════════════════ */
 :root{
   --bg:#05060E; --bg-grad:radial-gradient(1200px 600px at 12% -8%, #14103A 0%, transparent 60%),
                           radial-gradient(900px 500px at 92% 4%, #06263A 0%, transparent 62%);
@@ -723,3 +723,11 @@ tbody tr.selected { background: rgba(88,101,242,0.1) !important; }
   .dash-tot{gap:14px}
 }
 @media(prefers-reduced-motion:reduce){.dash-track i{transition:none}}
+
+/* ── recorrência (modal de transação) ── */
+.recur-box{border:1px solid var(--border);border-radius:12px;padding:10px 12px 2px;margin-bottom:14px}
+.recur-box .check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13.5px;margin-bottom:10px}
+.recur-box .check input{width:18px;height:18px;margin:0;accent-color:var(--neon-cyan);flex:none}
+.recur-box .check small{color:var(--text-3);font-size:12px}
+.recur-box .hint{margin-top:0}
+.recur-box .hint:empty{display:none}
