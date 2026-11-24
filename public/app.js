@@ -1,26 +1,13 @@
 /* ══ FinDigo — app ═════════════════════════════════════════ */
 
 // ── Constantes ──────────────────────────────────────────────
-const INCOME_CATS  = ['Salário','Freelance/Negócios','Investimentos','Outros Rendimentos'];
-const EXPENSE_CATS = ['Alimentação','Moradia','Transporte','Saúde','Educação','Entretenimento',
-  'Assinaturas','Compras','Cartões','Telecomunicações','Pets','Viagens','Dívidas',
-  'Transferências','Poupança','Impostos','Outros'];
-const ALL_CATS = [...INCOME_CATS, ...EXPENSE_CATS];
+// categorias, subcategorias e grupos: ver taxonomy.js (GROUPS, CAT_INFO, INCOME_CATS, EXPENSE_CATS, ALL_CATS)
 const ACCOUNTS = ['Santander', 'Nubank', 'Caixa Poup.Rodrigo', 'Caixa Vó', 'BB Vó', 'Inter', 'Em caixa (efetivo)'];
 const ACC_COLORS = ['#FF2E4D','#A472FF','#3D8BFF','#00B8FF','#FFE066','#FF7A00','#3DFF9E'];
 const DEFAULT_ACCOUNTS = ACCOUNTS.map((name,i) => ({ id:'acc'+i, name, initial:0, color: ACC_COLORS[i % ACC_COLORS.length] }));
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
-// paleta neon para categorias
-const CAT_COLORS = {
-  'Salário':'#3DFF9E','Freelance/Negócios':'#5CFFC8','Investimentos':'#00E5FF','Outros Rendimentos':'#7CFFB2',
-  'Alimentação':'#FF2E97','Moradia':'#FF6B3D','Transporte':'#FFC44D','Saúde':'#FF4D6D',
-  'Educação':'#4D9BFF','Entretenimento':'#A472FF','Assinaturas':'#C77DFF','Compras':'#FF7AC8',
-  'Cartões':'#00B8FF','Telecomunicações':'#5EEAD4','Pets':'#9EFF5E','Viagens':'#FFE066',
-  'Dívidas':'#FF5C5C','Transferências':'#8E9BCC','Poupança':'#3DFFD6','Impostos':'#B0BAD9',
-  'Outros':'#6E7BAE',
-};
 const MAX_MONTHS = 12;   // janela máxima do filtro
 const MAX_YEARS  = 2;    // retenção de dados
 
@@ -171,12 +158,15 @@ async function loadData(){
     cards = Array.isArray(r.cards) ? r.cards : [];
     investments = Array.isArray(r.investments) ? r.investments.map(v => ({ history:[], ...v })) : [];
     // parcelas de cartão e ocorrências recorrentes cuja data já chegou passam a "realizada" automaticamente
+    const migrated = migrateAll();                         // categorias da planilha + subcategorias
     const today = todayISO(); let promoted = 0;
     transactions.forEach(t => { if ((t.kind === 'card' || t.recurId) && t.status === 'pending' && t.date <= today){ t.status = 'paid'; promoted++; } });
     if (typeof trainBayes === 'function') trainBayes(transactions);
     setSync('ok');
     const recat = typeof ofRecategorize === 'function' ? ofRecategorize() : 0;
-    if (promoted && !recat) persist();
+    if ((promoted || migrated) && !recat) persist();
+    if (migrated) setTimeout(() => toast(`${migrated} transações reorganizadas nas novas categorias`), 600);
+    setTimeout(() => offerDedupe(true), 900);
   } catch (e) {
     transactions = [];
     setSync('error');
@@ -191,6 +181,7 @@ function normalize(t){
     date: String(t.date).slice(0,10),
     desc: t.desc || '',
     cat: t.cat || 'Outros',
+    sub: t.sub || '',
     type: t.type === 'income' ? 'income' : 'expense',
     amount: Math.abs(Number(t.amount) || 0),
     account: t.account || '',
@@ -279,10 +270,9 @@ $('#f-acc').addEventListener('change', () => { filters.acc = $('#f-acc').value; 
 $('#f-status').addEventListener('change', () => { filters.status = $('#f-status').value; renderAll(); });
 
 function populateFilters(){
-  const cats = [...new Set(transactions.map(t => t.cat))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const selCat = $('#f-cat'), curCat = selCat.value;
-  selCat.innerHTML = '<option value="">Todas</option>' + cats.map(c=>`<option>${esc(c)}</option>`).join('');
-  if (cats.includes(curCat)) selCat.value = curCat;
+  selCat.innerHTML = '<option value="">Todas</option>' + catFilterOptionsHTML();
+  selCat.value = curCat; if (selCat.value !== curCat){ selCat.value = ''; filters.cat = ''; }
   
   populateAccountSelects();
 
@@ -298,7 +288,7 @@ function inPeriod(t){
 function getFiltered(){
   return transactions.filter(t =>
     !t.hidden && inPeriod(t) &&
-    (!filters.cat || t.cat === filters.cat) &&
+    catMatch(t, filters.cat) &&
     (!filters.acc || t.account === filters.acc) &&
     (!filters.status || t.status === filters.status)
   );
@@ -353,7 +343,123 @@ $$('#tabs .tab').forEach(tab => tab.addEventListener('click', () => {
 }));
 
 // ══ RENDER ══════════════════════════════════════════════════
+
+// ══ TAXONOMIA (grupos › categorias › subcategorias) ═════════
+// Põe todas as transações nas categorias da planilha. Retorna quantas mudaram.
+function migrateAll(){
+  let n = 0;
+  transactions.forEach(t => {
+    if (t.kind === 'transfer' && t.cat !== 'Cartões' && t.cat !== 'Transferências'){ t.cat = 'Transferências'; t.sub = ''; }
+    if (migrateTx(t)) n++;
+  });
+  return n;
+}
+// filtro de categoria: '' = todas, '@g2' = grupo inteiro, senão nome da categoria
+function catMatch(t, v){
+  if (!v) return true;
+  if (v[0] === '@'){ const g = groupOf(t.cat); return v === '@none' ? !g : !!g && g.id === v.slice(1); }
+  return t.cat === v;
+}
+function catLabel(v){
+  if (!v) return '';
+  if (v === '@none') return 'fora dos grupos';
+  if (v[0] === '@'){ const g = GROUPS.find(x => x.id === v.slice(1)); return g ? `${g.n}. ${g.name}` : ''; }
+  return v;
+}
+function catFilterOptionsHTML(){
+  return `<optgroup label="Grupos">${GROUPS.map(g => `<option value="@${g.id}">▸ ${g.n}. ${esc(g.name)}</option>`).join('')}<option value="@none">▸ Fora dos grupos</option></optgroup>`
+    + catOptionsHTML('', esc);
+}
+
+// ══ DUPLICADAS ══════════════════════════════════════════════
+// Mesma data, tipo, valor, conta e descrição = mesma transação. Mantém a primeira.
+// Transferências entre contas (duas pontas) são comparadas pelo par inteiro.
+function findDuplicates(){
+  const seen = new Set(), drop = new Set();
+  const cents = (v) => Math.round(Number(v) * 100);
+  const groups = new Map();
+  transactions.forEach(t => {
+    if (t.kind === 'transfer' && t.transferId){
+      if (!groups.has(t.transferId)) groups.set(t.transferId, []);
+      groups.get(t.transferId).push(t);
+      return;
+    }
+    const k = [t.date, t.type, cents(t.amount), normName(t.account), normName(t.desc), t.kind || ''].join('|');
+    if (seen.has(k)) drop.add(t.id); else seen.add(k);
+  });
+  const seenT = new Set();
+  groups.forEach(legs => {
+    const k = 'T|' + legs.map(l => [l.date, l.type, cents(l.amount), normName(l.account), normName(l.desc)].join('|')).sort().join('#');
+    if (seenT.has(k)) legs.forEach(l => drop.add(l.id)); else seenT.add(k);
+  });
+  return drop;
+}
+function offerDedupe(auto){
+  const drop = findDuplicates();
+  if (!drop.size){ if (!auto) toast('Nenhuma transação duplicada encontrada'); return 0; }
+  const sig = [...drop].sort().join(',');
+  try { if (auto && localStorage.getItem('fn_dedupe_skip') === sig) return 0; } catch {}
+  const ok = confirm(`Encontrei ${drop.size} ${drop.size === 1 ? 'transação repetida' : 'transações repetidas'} (mesma data, valor, conta e descrição).\n\nExcluir as repetidas e manter só uma de cada?`);
+  if (!ok){ try { localStorage.setItem('fn_dedupe_skip', sig); } catch {} return 0; }
+  transactions = transactions.filter(t => !drop.has(t.id));
+  selectedTxs.clear();
+  persist(); populateFilters(); renderAll();
+  toast(`${drop.size} ${drop.size === 1 ? 'duplicada excluída' : 'duplicadas excluídas'} — ficou uma de cada`);
+  return drop.size;
+}
+
+// ══ METAS 50/30/20 ══════════════════════════════════════════
+// list: transações já filtradas; [from,to]: período (para somar aportes em investimentos)
+function goalStats(list, from, to){
+  const real = list.filter(t => !t.hidden && !isMove(t));
+  const inc = real.filter(t => t.type === 'income');
+  const exp = real.filter(t => t.type === 'expense');
+  const renda = inc.reduce((s,t) => s + t.amount, 0);
+  const by = (arr) => { const m = {}; arr.forEach(t => { m[t.cat] = (m[t.cat]||0) + t.amount; }); return Object.entries(m).sort((a,b) => b[1]-a[1]); };
+  const aportes = transactions.filter(t => t.kind === 'transfer' && t.type === 'income' && invOf(t) && !t.hidden && t.date >= from && t.date <= to)
+    .reduce((s,t) => s + t.amount, 0);
+  const rows = GROUPS.map(g => {
+    if (g.type === 'income') return { g, val: renda, cats: by(inc) };
+    const arr = exp.filter(t => groupOf(t.cat)?.id === g.id);
+    const cats = by(arr);
+    let val = arr.reduce((s,t) => s + t.amount, 0);
+    if (g.id === 'g4' && aportes){ val += aportes; cats.push(['Aportes em investimentos', aportes]); cats.sort((a,b) => b[1]-a[1]); }
+    return { g, val, cats };
+  });
+  const outside = exp.filter(t => !groupOf(t.cat));
+  return { renda, rows, outside: outside.reduce((s,t) => s + t.amount, 0), outsideN: outside.length };
+}
+function renderGoals(el, list, from, to){
+  if (!el) return;
+  const st = goalStats(list, from, to);
+  const pct = (v) => st.renda > 0 ? v / st.renda * 100 : 0;
+  const fmtP = (p) => `${p.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  el.innerHTML = st.rows.map(({ g, val, cats }) => {
+    const top = cats.slice(0, 3).map(([c, v]) => `${esc(c)} ${fmtBRL(v)}`).join(' · ');
+    if (g.type === 'income') return `<div class="goal goal-inc" style="--gc:${g.color}">
+      <div class="goal-h"><b>${g.n}. ${esc(g.name)}</b><span class="goal-v pos">${fmtBRL(val)}</span></div>
+      <div class="goal-note">base das metas${top ? ' · ' + top : ''}</div></div>`;
+    const p = pct(val), goal = g.goal;
+    const ok = st.renda > 0 && (goal.op === 'max' ? p <= goal.pct : p >= goal.pct);
+    const chip = !st.renda ? '<span class="goal-chip">sem receitas no período</span>'
+      : ok ? `<span class="goal-chip ok">✓ dentro da meta</span>`
+      : goal.op === 'max' ? `<span class="goal-chip bad">${fmtP(p - goal.pct)} acima · ${fmtBRL(val - st.renda * goal.pct / 100)}</span>`
+      : `<span class="goal-chip warn">faltam ${fmtBRL(st.renda * goal.pct / 100 - val)}</span>`;
+    const w = Math.min(100, p), mark = Math.min(100, goal.pct);
+    return `<div class="goal" style="--gc:${g.color}">
+      <div class="goal-h"><b>${g.n}. ${esc(g.name)}</b><span class="goal-v">${fmtBRL(val)} <em>${st.renda ? fmtP(p) : '—'}</em></span></div>
+      <div class="goal-track"><i style="width:${w.toFixed(1)}%"></i><s style="left:${mark}%" title="meta ${esc(goal.label)}"></s></div>
+      <div class="goal-f"><span class="goal-note">meta ${esc(goal.label)}${top ? ' · ' + top : ''}</span>${chip}</div></div>`;
+  }).join('') + (st.outside ? `<div class="goal-out">⚠ ${fmtBRL(st.outside)} em ${st.outsideN} ${st.outsideN === 1 ? 'despesa' : 'despesas'} fora dos 4 grupos (Outros/Transferências/Cartões) — <button class="link-btn" data-goal-out>ver e reclassificar</button></div>` : '');
+  el.querySelectorAll('[data-goal-out]').forEach(b => b.addEventListener('click', () => {
+    txView.cat = '@none'; txView.type = 'expense';
+    document.querySelector('#tabs .tab[data-tab="transactions"]')?.click();
+    $('#tx-type').value = 'expense'; renderTx();
+  }));
+}
+
 function renderAll(){
+  if (migrateAll()) persist();
   computeMoves();
   renderSummary();
   renderMonthly();
@@ -364,13 +470,15 @@ function renderAll(){
   const span = monthsBetween(filters.from, filters.to) + 1;
   $('#filter-note').textContent =
     `${monthLabel(filters.from)} – ${monthLabel(filters.to)} · ${span} ${span===1?'mês':'meses'} · janela máx. ${MAX_MONTHS}m · histórico ${MAX_YEARS} anos`;
-  const extras = [filters.cat, filters.status === 'paid' ? 'realizadas' : filters.status === 'pending' ? 'previstas' : ''].filter(Boolean);
+  const extras = [catLabel(filters.cat), filters.status === 'paid' ? 'realizadas' : filters.status === 'pending' ? 'previstas' : ''].filter(Boolean);
   $('#filter-toggle-txt').textContent =
     `${monthLabel(filters.from)} – ${monthLabel(filters.to)}` + (extras.length ? ` · ${extras.join(' · ')}` : '');
 }
 
 // ── Resumo ──
 function renderSummary(){
+  renderGoals($('#goals-sum'), getFiltered(), filters.from + '-01', dateIn(filters.to, 31));
+  const gs = $('#goals-sum-period'); if (gs) gs.textContent = `${monthLabel(filters.from)} – ${monthLabel(filters.to)}${filters.cat ? ' · ' + catLabel(filters.cat) : ''}`;
   const f = getFiltered();
   const cm = curMonth();
   const all = transactions;
@@ -514,7 +622,7 @@ function renderMonthly(){
 
   const data = keys.map(k => {
     const txs = transactions.filter(t => monthKey(t.date) === k &&
-      (!filters.cat || t.cat === filters.cat));
+      catMatch(t, filters.cat));
     return {
       key: k,
       incPaid: sumOf(txs,'income','paid'), incPend: sumOf(txs,'income','pending'),
@@ -553,12 +661,6 @@ function renderMonthly(){
 }
 
 // ── Transações ──
-const CAT_ICONS = {
-  'Salário':'💼','Freelance/Negócios':'🧑‍💻','Investimentos':'💰','Outros Rendimentos':'💵',
-  'Alimentação':'🍽️','Moradia':'🏠','Transporte':'🚗','Saúde':'🩺','Educação':'📚','Entretenimento':'🎬',
-  'Assinaturas':'📺','Compras':'🛍️','Cartões':'💳','Telecomunicações':'📱','Pets':'🐾','Viagens':'✈️',
-  'Dívidas':'📉','Transferências':'🔁','Poupança':'🐷','Impostos':'🧾','Outros':'📦',
-};
 const catIcon = (c) => CAT_ICONS[c] || '🏷️';
 const txView = { period:'this', from:'', to:'', acc:'', type:'', sort:'date', dir:-1, cat:'', showHidden:false, q:'', limit:150 };
 let txList = [];
@@ -609,7 +711,7 @@ function getTxList(){
     if (t.date < from || t.date > to) return false;
     if (t.hidden && !txView.showHidden) return false;
     if (txView.acc && !sameName(t.account, txView.acc)) return false;
-    if (txView.cat && t.cat !== txView.cat) return false;
+    if (!catMatch(t, txView.cat)) return false;
     switch (txView.type){
       case 'expense': if (t.type !== 'expense' || isMove(t)) return false; break;
       case 'income': if (t.type !== 'income' || isMove(t)) return false; break;
@@ -617,7 +719,7 @@ function getTxList(){
       case 'card': if (t.kind !== 'card') return false; break;
       case 'pending': case 'paid': if (t.status !== txView.type) return false; break;
     }
-    if (q && !normName(`${t.desc} ${t.cat} ${t.account} ${fmtDMY(t.date)} ${t.amount.toFixed(2).replace('.',',')}`).includes(q)) return false;
+    if (q && !normName(`${t.desc} ${t.cat} ${t.sub} ${t.account} ${fmtDMY(t.date)} ${t.amount.toFixed(2).replace('.',',')}`).includes(q)) return false;
     return true;
   }).sort((a,b) => {
     let r;
@@ -637,9 +739,8 @@ function populateTxFilters(){
   sa.innerHTML = '<option value="">Todas Contas</option>' + grp('Contas', accounts.map(a=>a.name)) + grp('Cartões', cards.map(c=>c.name))
     + grp('Investimentos', investments.map(v=>v.name)) + grp('Outras', extra);
   sa.value = txView.acc; if (sa.value !== txView.acc){ txView.acc = ''; sa.value = ''; }
-  const cats = [...new Set([...ALL_CATS, ...transactions.map(t => t.cat)])].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const sc = $('#tx-cat');
-  sc.innerHTML = '<option value="">Categorias</option>' + cats.map(c => `<option value="${esc(c)}">${catIcon(c)} ${esc(c)}</option>`).join('');
+  sc.innerHTML = '<option value="">Categorias</option>' + catFilterOptionsHTML();
   sc.value = txView.cat; if (sc.value !== txView.cat){ txView.cat = ''; sc.value = ''; }
 }
 
@@ -648,6 +749,7 @@ function renderTx(){
   populateTxFilters();
   const f = getTxList();
   txList = f;
+  { const [gf, gt] = txRange(); renderGoals($('#goals-tx'), f, gf, gt); }
 
   // KPIs — transferências e ocultas não entram nos totais
   const real = f.filter(t => !t.hidden && !isMove(t));
@@ -693,7 +795,7 @@ function renderTx(){
     return `<tr class="${sel ? 'selected' : ''} ${dim ? 'dim' : ''}" data-id="${t.id}">
     <td class="chk-col"><input type="checkbox" class="chk-row" data-id="${t.id}" ${sel?'checked':''} aria-label="Selecionar"></td>
     <td><div class="tx2-desc"><span class="tx2-av" style="--c:${col}">${catIcon(t.cat)}</span><span class="tx2-dtxt">${esc(t.desc)}</span>${t.source==='openfinance'?'<span class="tx2-of" title="Importada automaticamente via Open Finance">OF</span>':''}${t.hidden?'<span class="tx2-hid" title="Oculta">oculta</span>':''}</div></td>
-    <td><div class="tx2-cats"><span class="tx2-cat"><i>${catIcon(t.cat)}</i>${esc(t.cat)}</span>${tag ? `<span class="tx2-tag ${tag.cls}"><i>${tag.ico}</i>${tag.txt}</span>` : ''}</div></td>
+    <td><div class="tx2-cats"><span class="tx2-cat" title="${esc(groupOf(t.cat)?.name || 'Fora dos grupos')}"><i>${catIcon(t.cat)}</i>${esc(t.cat)}${t.sub ? `<small class="tx2-sub">› ${esc(t.sub)}</small>` : ''}</span>${tag ? `<span class="tx2-tag ${tag.cls}"><i>${tag.ico}</i>${tag.txt}</span>` : ''}</div></td>
     <td class="tx2-acc">${t.account ? `<span class="tx2-acc-ico" style="--c:${esc(ac)}">${esc(t.account.trim().charAt(0).toUpperCase())}</span>${esc(t.account)}` : '<span class="muted">—</span>'}</td>
     <td class="tx2-date">${fmtDMY(t.date)}</td>
     <td class="num tx2-val ${neg ? '' : 'pos'}">${neg ? '' : '+'}${fmtBRL(t.amount)}</td>
@@ -784,6 +886,7 @@ $('#tx-show-hidden').addEventListener('change', e => { txView.showHidden = e.tar
 let txSearchT = null;
 $('#tx-search').addEventListener('input', e => { clearTimeout(txSearchT); txSearchT = setTimeout(() => { txView.q = e.target.value; txView.limit = 150; renderTx(); }, 120); });
 $('#btn-tx-new').addEventListener('click', () => openModal(null));
+$('#btn-dedupe').addEventListener('click', () => { try { localStorage.removeItem('fn_dedupe_skip'); } catch {} offerDedupe(false); });
 $('#btn-tx-more').addEventListener('click', () => { txView.limit += 150; renderTx(); });
 
 $$('#tx-table th.sortable').forEach(th => th.addEventListener('click', () => {
@@ -810,7 +913,7 @@ function updateBulkBar() {
     bar.hidden = false;
     $('#bulk-count').textContent = `${count} selecionada${count>1?'s':''}`;
     if ($('#bulk-cat').options.length < 3) {
-      $('#bulk-cat').innerHTML = '<option value="">Categorizar como...</option>' + ALL_CATS.map(c=>`<option>${esc(c)}</option>`).join('');
+      $('#bulk-cat').innerHTML = '<option value="">Categorizar como...</option>' + catSubOptionsHTML(esc);
     }
     const allHidden = transactions.filter(t => selectedTxs.has(t.id)).every(t => t.hidden);
     $('#btn-bulk-hide').textContent = allHidden ? 'Mostrar' : 'Ocultar';
@@ -838,13 +941,13 @@ $('#btn-bulk-del').addEventListener('click', () => {
 });
 
 $('#bulk-cat').addEventListener('change', (e) => {
-  const cat = e.target.value;
+  const [cat, sub] = e.target.value.split('||');
   if (!cat) return;
   transactions.forEach(t => {
     if (selectedTxs.has(t.id) && t.kind !== 'transfer') {
-      t.cat = cat;
+      t.cat = cat; t.sub = sub || subsOf(cat)[0] || '';
       if (INCOME_CATS.includes(cat)) t.type = 'income';
-      else if (EXPENSE_CATS.includes(cat)) t.type = 'expense';
+      else if (cat !== 'Transferências' && EXPENSE_CATS.includes(cat)) t.type = 'expense';
     }
   });
   selectedTxs.clear();
@@ -889,7 +992,7 @@ function drawMonthly(){
   const keys = monthRange(filters.from, filters.to);
   const cm = curMonth();
   const data = keys.map(k => {
-    const txs = transactions.filter(t => monthKey(t.date) === k && !t.hidden && (!filters.cat || t.cat === filters.cat));
+    const txs = transactions.filter(t => monthKey(t.date) === k && !t.hidden && catMatch(t, filters.cat));
     return { k, inc: sumOf(txs,'income'), exp: sumOf(txs,'expense') };
   });
   const padL = 50, padR = 8, padT = 12, padB = 30;
@@ -961,11 +1064,21 @@ window.addEventListener('resize', redrawCharts);
 
 // ══ MODAL ═══════════════════════════════════════════════════
 function populateCatSelect(){
-  const list = modalType === 'income' ? INCOME_CATS : EXPENSE_CATS;
+  const list = catsForType(modalType);
   const sel = $('#m-cat'), cur = sel.value;
-  sel.innerHTML = list.map(c=>`<option>${esc(c)}</option>`).join('');
-  if (list.includes(cur)) sel.value = cur;
+  sel.innerHTML = catOptionsHTML(modalType, esc);
+  sel.value = list.includes(cur) ? cur : (modalType === 'income' ? 'Renda Principal' : 'Outros');
+  populateSubSelect('#m-sub', sel.value);
 }
+function populateSubSelect(selId, cat, cur){
+  const subs = subsOf(cat), el = $(selId);
+  el.innerHTML = subs.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  el.value = subs.includes(cur) ? cur : subs[0] || '';
+  const g = groupOf(cat), hint = $(selId + '-grp');
+  if (hint) hint.textContent = g ? `Grupo ${g.n} · ${g.name}${g.goal ? ' — meta ' + g.goal.label : ''}` : cat === 'Transferências' ? 'Movimentação entre contas suas não entra em receitas/despesas' : 'Fora dos 4 grupos — reclassifique quando puder';
+}
+$('#m-cat').addEventListener('change', () => populateSubSelect('#m-sub', $('#m-cat').value));
+$('#c-cat').addEventListener('change', () => populateSubSelect('#c-sub', $('#c-cat').value));
 function setModalType(t){
   modalType = t;
   $$('#type-seg button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
@@ -976,7 +1089,7 @@ $$('#type-seg button').forEach(b => b.addEventListener('click', () => setModalTy
 $('#m-desc').addEventListener('blur', () => {
   if (editingId) return;
   const d = $('#m-desc').value.trim();
-  if (d) { const c = categorize(d, modalType); if (c) $('#m-cat').value = c; }
+  if (d) { const c = classify(d, modalType); if (c && catsForType(modalType).includes(c.cat)){ $('#m-cat').value = c.cat; populateSubSelect('#m-sub', c.cat, c.sub); } }
 });
 
 function openModal(id){
@@ -987,7 +1100,7 @@ function openModal(id){
     const t = transactions.find(x => x.id === id);
     setModalType(t.type);
     $('#m-date').value = t.date; $('#m-amount').value = t.amount;
-    $('#m-desc').value = t.desc; $('#m-cat').value = t.cat;
+    $('#m-desc').value = t.desc; $('#m-cat').value = t.cat; populateSubSelect('#m-sub', t.cat, t.sub);
     ensureAccountOption(t.account);
     $('#m-account').value = t.account; $('#m-status').value = t.status;
     setRecurUI(t);
@@ -1026,6 +1139,7 @@ $('#tx-form').addEventListener('submit', (e) => {
     date: $('#m-date').value,
     desc: $('#m-desc').value.trim(),
     cat: $('#m-cat').value,
+    sub: $('#m-sub').value,
     type: modalType,
     amount: Math.abs(parseFloat($('#m-amount').value) || 0),
     account: $('#m-account').value.trim(),
@@ -1045,7 +1159,7 @@ $('#tx-form').addEventListener('submit', (e) => {
       let n = 0;
       transactions.forEach(t => {
         if (t.recurId !== tx.recurId || t.recurIdx <= tx.recurIdx) return;
-        t.desc = tx.desc; t.cat = tx.cat; t.type = tx.type; t.amount = tx.amount; t.account = tx.account;
+        t.desc = tx.desc; t.cat = tx.cat; t.sub = tx.sub; t.type = tx.type; t.amount = tx.amount; t.account = tx.account;
         t.date = dateIn(t.date.slice(0,7), day);
         if (t.date > today) t.status = 'pending';
         n++;
@@ -1177,6 +1291,7 @@ function parsePlainText(text){
 }
 
 function showPreview(txs, fname){
+  txs.forEach(t => migrateTx(t));                     // categoria + subcategoria da planilha
   const inc = txs.filter(t=>t.type==='income').length;
   const exp = txs.length - inc;
   showStatus(`${txs.length} transações reconhecidas em ${fname} — ${inc} receitas, ${exp} despesas.`, 'ok');
@@ -1185,7 +1300,7 @@ function showPreview(txs, fname){
   tb.innerHTML = txs.slice(0,50).map(t => `<tr>
     <td style="white-space:nowrap">${t.date.split('-').reverse().join('/')}</td>
     <td>${esc(t.desc)}</td>
-    <td><span class="pill">${esc(t.cat)}</span></td>
+    <td><span class="pill">${esc(t.cat)}${t.sub ? ' › ' + esc(t.sub) : ''}</span></td>
     <td class="num ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'−'} ${fmtBRL(t.amount).replace('R$ ','')}</td>
   </tr>`).join('');
   $('#preview-card').hidden = false;
@@ -1205,6 +1320,7 @@ $('#btn-confirm-import').addEventListener('click', () => {
     return !existing.has(`${t.date}|${t.desc}|${t.amount}`);
   });
   const dupes = pendingTxs.length - fresh.length - old;
+  fresh.forEach(t => migrateTx(t));
   const acc = $('#import-account').value;
   if (acc) fresh.forEach(t => t.account = acc);
   
@@ -1222,9 +1338,9 @@ $('#btn-confirm-import').addEventListener('click', () => {
 $('#btn-export').addEventListener('click', () => {
   const f = getFiltered();
   if (!f.length){ toast('Nada para exportar neste filtro'); return; }
-  const head = 'Data,Descrição,Categoria,Tipo,Situação,Valor,Conta';
+  const head = 'Data,Descrição,Grupo,Categoria,Subcategoria,Tipo,Situação,Valor,Conta';
   const rows = f.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(t => [
-    t.date, `"${t.desc.replace(/"/g,'""')}"`, t.cat,
+    t.date, `"${t.desc.replace(/"/g,'""')}"`, `"${groupOf(t.cat)?.name || ''}"`, `"${t.cat}"`, `"${t.sub || ''}"`,
     t.type === 'income' ? 'Receita' : 'Despesa',
     t.status === 'pending' ? 'Prevista' : 'Realizada',
     (t.type === 'income' ? t.amount : -t.amount).toFixed(2).replace('.',','),
@@ -1496,7 +1612,7 @@ $('#acc-form').addEventListener('submit', e => {
   } else {
     const inc = accOp === 'in';
     transactions.push({ id: uid(), date, amount, status:'paid', source:'manual', kind:'adjust', transferId:'', ref:'',
-      type: inc ? 'income' : 'expense', cat: inc ? 'Outros Rendimentos' : 'Outros', account: from.name,
+      type: inc ? 'income' : 'expense', cat: inc ? 'Renda Extra' : 'Outros', sub: inc ? 'Renda extra' : 'A classificar', account: from.name,
       desc: desc || (inc ? `Inserção manual — ${from.name}` : `Retirada manual — ${from.name}`) });
     toast(inc ? `${fmtBRL(amount)} inserido em ${from.name}` : `${fmtBRL(amount)} retirado de ${from.name}`);
   }
@@ -1737,8 +1853,8 @@ function openCardModal(mode, id, key){
     $('#c-card').innerHTML = cards.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     $('#c-card').value = (card || cards[0]).id;
     $('#c-date').value = todayISO(); $('#c-desc').value = ''; $('#c-amount').value = ''; $('#c-parc').value = 1;
-    $('#c-cat').innerHTML = EXPENSE_CATS.map(c => `<option>${esc(c)}</option>`).join('');
-    $('#c-cat').value = 'Compras';
+    $('#c-cat').innerHTML = catOptionsHTML('expense', esc);
+    $('#c-cat').value = 'Compras Pessoais'; populateSubSelect('#c-sub', 'Compras Pessoais');
     $('#cc-submit').textContent = 'Lançar compra';
     updateBuyHint();
   } else if (mode === 'pay'){
@@ -1778,7 +1894,7 @@ function updateBuyHint(){
 ['#c-card','#c-date','#c-amount','#c-parc'].forEach(s => $(s).addEventListener('input', updateBuyHint));
 $('#c-desc').addEventListener('blur', () => {
   const d = $('#c-desc').value.trim();
-  if (d && typeof categorize === 'function'){ const c = categorize(d, 'expense'); if (c && EXPENSE_CATS.includes(c)) $('#c-cat').value = c; }
+  if (d && typeof classify === 'function'){ const c = classify(d, 'expense'); if (c && EXPENSE_CATS.includes(c.cat)){ $('#c-cat').value = c.cat; populateSubSelect('#c-sub', c.cat, c.sub); } }
 });
 const closeCardModal = () => { $('#cc-overlay').hidden = true; };
 $('#cc-close').addEventListener('click', closeCardModal);
@@ -1826,7 +1942,7 @@ $('#cc-form').addEventListener('submit', e => {
     for (let i = 0; i < n; i++){
       const d = addMonthsISO(date, i);
       const amount = i === n - 1 ? r2(total - per * (n - 1)) : per;
-      transactions.push({ id: uid(), date: d, amount, type:'expense', cat: $('#c-cat').value,
+      transactions.push({ id: uid(), date: d, amount, type:'expense', cat: $('#c-cat').value, sub: $('#c-sub').value,
         desc: n > 1 ? `${desc} (${i+1}/${n})` : desc, account: card.name,
         status: d <= today ? 'paid' : 'pending', source:'card', kind:'card', transferId: gid, ref:'' });
     }
@@ -2055,13 +2171,13 @@ $('#iv-form').addEventListener('submit', e => {
     const acc = $('#i-acc').value;
     if (!acc || amount <= 0){ toast('Escolha a conta e o valor'); return; }
     if (ivOp === 'aporte'){
-      pushTransfer({ date, amount, cat:'Investimentos', from: acc, to: v.name,
+      pushTransfer({ date, amount, cat:'Transferências', from: acc, to: v.name,
         descFrom: `Aporte — ${v.name}`, descTo: `Aporte vindo de ${acc}` });
       v.current = r2((Number(v.current)||0) + amount);
       toast(`${fmtBRL(amount)} aplicado em ${v.name}`);
     } else {
       if (amount > (Number(v.current)||0) + 0.004 && !confirm(`O resgate (${fmtBRL(amount)}) é maior que o saldo registrado (${fmtBRL(v.current)}). Continuar?`)) return;
-      pushTransfer({ date, amount, cat:'Investimentos', from: v.name, to: acc,
+      pushTransfer({ date, amount, cat:'Transferências', from: v.name, to: acc,
         descFrom: `Resgate para ${acc}`, descTo: `Resgate — ${v.name}` });
       v.current = r2(Math.max(0, (Number(v.current)||0) - amount));
       toast(`${fmtBRL(amount)} resgatado de ${v.name}`);

@@ -134,7 +134,7 @@ check('importou só o que é novo (paginação incluída)', st1.startsWith(`${ex
 await page.waitForTimeout(1200);
 let db = (await call('/api/data', null, T, 'GET')).body.transactions;
 const byId = (id) => db.find(t => t.id === id);
-check('salário como receita/Salário', byId('of_sal')?.type === 'income' && byId('of_sal')?.cat === 'Salário');
+check('salário como receita/Renda Principal › Salário', byId('of_sal')?.type === 'income' && byId('of_sal')?.cat === 'Renda Principal' && byId('of_sal')?.sub === 'Salário');
 check('transferência própria não conta como despesa', byId('of_self')?.kind === 'transfer');
 check('pagamento de fatura vira transferência/Cartões', byId('of_fat')?.kind === 'transfer' && byId('of_fat')?.cat === 'Cartões');
 check('pendente fica previsto', byId('of_ifood')?.status === 'pending');

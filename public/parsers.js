@@ -1,29 +1,5 @@
 // ── Categorização automática + parsers de extrato (CSV / XLSX / OFX / PDF)
-// Auto-categorization rules
-const CAT_RULES = [
-  {r:/salário|salario|vencimento|fiemg|lemontech|folha|pagamento\s*emp/i, c:'Salário'},
-  {r:/freelance|autônom|mei\s+receit|pj\s+receit|honorário/i, c:'Freelance/Negócios'},
-  {r:/dividendo|rendiment|invest|cdb|lci|lca|tesouro|poupança.*receit/i, c:'Investimentos'},
-  {r:/poupança|reserva|guardar/i, c:'Poupança'},
-  {r:/cartão|cartao|fatura|nubank|mercado\s*pago|brasilcard|bmg|basil\s*card/i, c:'Cartões'},
-  {r:/supermercado|mercado|padaria|açougue|hortifruti|ifood|rappi|deliveroo|uber\s*eat|pao\s*de\s*açucar|extra|carrefour|walmart/i, c:'Alimentação'},
-  {r:/restaurante|lanchonete|pizzaria|hamburgue|sushi|bar\s+e|café|lanche/i, c:'Alimentação'},
-  {r:/aluguel|condomínio|condominio|iptu|agua\s|energia\s|luz\s|enel|cemig|copasa|gás\s|gas\s|comgas/i, c:'Moradia'},
-  {r:/reparo|reforma|construção|material\s+construção|casa\s+|(imóvel|imovel)/i, c:'Moradia'},
-  {r:/uber|99app|taxi|gasolina|combustível|shell|postos|ônibus|metrô|metro|bilhete\s+ún|estacionamento|pedágio|detran|ipva|seguro\s+(auto|veículo|carro)/i, c:'Transporte'},
-  {r:/farmácia|farmacia|drogaria|droga|remédio|remedio|consulta|médico|medico|dentista|plano\s+saúde|hospital|laboratório|exame|fisio|psico/i, c:'Saúde'},
-  {r:/academia|pilates|yoga|ginástica|esporte/i, c:'Saúde'},
-  {r:/faculdade|universidade|escola|curso|aula|mensalidade|matrícula|livros?|mba|pós\s*grad|pos\s*grad|chatgpt|claude|openai/i, c:'Educação'},
-  {r:/netflix|spotify|disney|amazon\s*prime|hbo|paramount|globoplay|apple\s*tv|deezer|youtube|prime\s*video/i, c:'Assinaturas'},
-  {r:/claro|tim|vivo|oi\s+|internet|banda\s+larg|telefone|celular/i, c:'Telecomunicações'},
-  {r:/ração|pet|banho\s+tosa|veterinário|veterinario|cachorro|gato|pet\s*shop/i, c:'Pets'},
-  {r:/hotel|airbnb|passagem|voo|viagem|turismo|hostel|booking/i, c:'Viagens'},
-  {r:/cinema|teatro|show|ingresso|parque|diversão|lazer|entretenimento/i, c:'Entretenimento'},
-  {r:/empréstimo|emprestimo|parcela|acordo|recovery|divida|dívida|puc\s+\d|finan|débito|debito\s+auto/i, c:'Dívidas'},
-  {r:/imposto|das\s+mei|irrf|ir\s+renda|taxa|multa/i, c:'Impostos'},
-  {r:/transf|pix/i, c:'Transferências'},
-  {r:/compras?|shopping|loja|magazine|amazon|americanas|submarino|casas\s+bahia|extra\s+eletro/i, c:'Compras'},
-];
+// Regras de categorização: ver SUB_RULES em taxonomy.js
 
 // ─────────────────────────────────────────────────────────────────
 // INTELIGÊNCIA ARTIFICIAL (NAIVE BAYES)
@@ -52,34 +28,25 @@ function trainBayes(transactions) {
 
 function predictCategory(desc, type) {
   const d = String(desc).toLowerCase();
-  
-  // 1. Tenta regras estáticas primeiro
-  for (const rule of CAT_RULES) {
-    if (rule.r.test(d)) {
-      const cat = rule.c;
-      if (typeof INCOME_CATS !== 'undefined') {
-        if (type === 'income' && INCOME_CATS.includes(cat)) return cat;
-        if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
-      }
-      if (type === 'expense') return cat;
-    }
-  }
-  
+
+  // 1. Regras por palavra-chave (taxonomia da planilha)
+  const hit = classifyDesc(desc, type);
+  if (hit) return hit.cat;
+
   // 2. Fallback para IA Bayesiana
   if (bayesModel.totalDocs === 0) {
-    return type === 'income' ? 'Outros Rendimentos' : 'Outros';
+    return type === 'income' ? 'Renda Extra' : 'Outros';
   }
   
   const words = d.split(/[\W_]+/).filter(w => w.length > 2 && isNaN(w));
-  let bestCat = type === 'income' ? 'Outros Rendimentos' : 'Outros';
+  let bestCat = type === 'income' ? 'Renda Extra' : 'Outros';
   let bestScore = -Infinity;
   const V = 1000;
   
   for (const cat in bayesModel.catCounts) {
-    if (typeof INCOME_CATS !== 'undefined') {
-      if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
-      if (type === 'expense' && INCOME_CATS.includes(cat)) continue;
-    }
+    if (!(cat in CAT_INFO) || cat === 'Transferências' || cat === 'Outros') continue;   // só categorias da planilha
+    if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
+    if (type === 'expense' && INCOME_CATS.includes(cat)) continue;
     
     let score = Math.log(bayesModel.catCounts[cat] / bayesModel.totalDocs);
     const catWords = bayesModel.wordsByCat[cat] || {};
@@ -101,6 +68,13 @@ function predictCategory(desc, type) {
 
 function categorize(desc, type) {
   return predictCategory(desc, type);
+}
+// categoria + subcategoria
+function classify(desc, type) {
+  const hit = classifyDesc(desc, type);
+  if (hit) return hit;
+  const cat = predictCategory(desc, type);
+  return { cat, sub: guessSub(cat, desc, type) };
 }
 
 // ─────────────────────────────────────────────────────────────────

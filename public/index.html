@@ -133,6 +133,11 @@
       <div class="dash-worth-total"><p class="dash-k">Patrimônio líquido</p><p class="dash-num" id="k-worth">R$ 0,00</p><p class="dash-sub">contas + investimentos − cartões</p></div>
     </div>
 
+    <div class="dash-card goals-card">
+      <div class="dash-card-h"><h3>Metas 50/30/20</h3><span class="dash-sub" id="goals-sum-period"></span></div>
+      <div class="goals" id="goals-sum"></div>
+    </div>
+
     <div class="dash-grid">
       <div class="dash-card">
         <div class="dash-card-h">
@@ -298,12 +303,18 @@
         <div><div class="tx2-klab">Saldo</div><div class="tx2-kval" id="tx-k-bal">R$ 0,00</div></div></div>
     </div>
 
+    <details class="tx2-goals" open>
+      <summary>Metas 50/30/20 <span>— sobre as transações filtradas</span></summary>
+      <div class="goals" id="goals-tx"></div>
+    </details>
+
     <div class="tx2-card">
       <div class="tx2-head">
         <label class="tx2-search">
           <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input type="search" id="tx-search" placeholder="Buscar transações..." autocomplete="off">
         </label>
+        <button class="tx2-btn ghost" id="btn-dedupe" title="Procura transações repetidas (mesma data, valor, conta e descrição)">Remover duplicadas</button>
         <button class="tx2-btn" id="btn-tx-new"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova Transação</button>
       </div>
 
@@ -451,9 +462,11 @@
     <div class="field"><label for="m-desc">Descrição</label><input id="m-desc" required maxlength="240"></div>
     <div class="frow">
       <div class="field"><label for="m-cat">Categoria</label><select id="m-cat"></select></div>
-      <div class="field"><label for="m-status">Situação</label>
-        <select id="m-status"><option value="paid">Realizada</option><option value="pending">Prevista</option></select>
-      </div>
+      <div class="field"><label for="m-sub">Subcategoria</label><select id="m-sub"></select></div>
+    </div>
+    <div class="hint grp-hint" id="m-sub-grp"></div>
+    <div class="field"><label for="m-status">Situação</label>
+      <select id="m-status"><option value="paid">Realizada</option><option value="pending">Prevista</option></select>
     </div>
     <div class="field"><label for="m-account">Conta / Cartão</label><select id="m-account"></select></div>
     <div class="recur-box" id="m-recur-box">
@@ -525,7 +538,11 @@
         <div class="field"><label for="c-amount">Valor total (R$)</label><input type="number" id="c-amount" step="0.01" min="0"></div>
         <div class="field"><label for="c-parc">Parcelas</label><input type="number" id="c-parc" min="1" max="48" value="1"></div>
       </div>
-      <div class="field"><label for="c-cat">Categoria</label><select id="c-cat"></select></div>
+      <div class="frow">
+        <div class="field"><label for="c-cat">Categoria</label><select id="c-cat"></select></div>
+        <div class="field"><label for="c-sub">Subcategoria</label><select id="c-sub"></select></div>
+      </div>
+      <div class="hint grp-hint" id="c-sub-grp"></div>
       <div class="hint" id="c-hint"></div>
     </div>
     <div id="cc-pay-fields" hidden>
@@ -603,6 +620,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="/taxonomy.js"></script>
 <script src="/parsers.js"></script>
 <script src="/app.js"></script>
 <script src="/openfinance.js"></script>

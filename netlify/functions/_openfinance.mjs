@@ -124,27 +124,31 @@ export function accountView(a, prev = {}) {
 const SELF_TRANSFER = /same person|mesma titularidade|entre contas/i;
 const CARD_PAYMENT = /credit card payment|pagamento de (cart|fatura)|fatura/i;
 
+// categorias da planilha (taxonomy.js). A subcategoria é definida no navegador pela descrição.
 const EXPENSE_RULES = [
-  [/gas station|fuel|combust|parking|estacion|taxi|ride|uber|99|toll|ped[aá]gio|transport|vehicle|automotive|mobilidade/i, "Transporte"],
-  [/grocer|supermarket|supermercado|food|eating|restaurant|bakery|padaria|delivery|aliment|drinks|bares/i, "Alimentação"],
-  [/rent|aluguel|housing|moradia|mortgage|electric|energia|water|[áa]gua|utilit|condom|home|casa/i, "Moradia"],
-  [/telecom|internet|mobile|celular|phone|telefon/i, "Telecomunicações"],
-  [/subscription|assinatura|streaming|digital service|software|video|music/i, "Assinaturas"],
-  [/health|sa[uú]de|pharmac|farm[aá]c|hospital|clinic|dent|wellness|gym|fitness|academia/i, "Saúde"],
+  [/parking|estacion|toll|ped[aá]gio/i, "Transporte"],
+  [/gas station|fuel|combust|taxi|ride|uber|\b99\b|transport|vehicle|automotive|mobilidade/i, "Transporte"],
+  [/restaurant|eating out|delivery|bars?\b|drinks|caf[eé]|fast food|lanch/i, "Alimentação Fora"],
+  [/grocer|supermarket|supermercado|food|bakery|padaria|aliment/i, "Alimentação"],
+  [/rent|aluguel|housing|moradia|mortgage|condom|home improvement|reforma/i, "Habitação"],
+  [/electric|energia|water|[áa]gua|utilit|telecom|internet|mobile|celular|phone|telefon/i, "Contas de Consumo"],
+  [/subscription|assinatura|streaming|digital service|software|video|music/i, "Assinaturas e Serviços"],
+  [/gym|fitness|academia|sport|esporte/i, "Esportes"],
+  [/health|sa[uú]de|pharmac|farm[aá]c|hospital|clinic|dent|wellness/i, "Saúde"],
   [/educat|educa[cç]|school|escola|universit|course|curso|book|livr/i, "Educação"],
-  [/leisure|lazer|entertain|cinema|game|sport|esporte|event|ticket/i, "Entretenimento"],
+  [/beauty|beleza|personal care|cuidado|sal[aã]o|barber/i, "Cuidados Pessoais"],
+  [/leisure|lazer|entertain|cinema|game|event|ticket|travel|viage|airline|a[ée]reo|hotel|accommodation|lodging|hosped|airport|tour/i, "Lazer e Cultura"],
   [/\bpets?\b/i, "Pets"],
-  [/travel|viage|airline|a[ée]reo|hotel|accommodation|lodging|hosped|airport|tour/i, "Viagens"],
-  [/tax|tribut|impost|iof|iptu|ipva/i, "Impostos"],
-  [/loan|empr[eé]st|financ|debt|d[ií]vida|interest|juros|late payment|overdraft/i, "Dívidas"],
-  [/saving|poupan/i, "Poupança"],
-  [/shopping|compras|cloth|vestu|electronic|eletr[oô]n|department|online|marketplace|store|loja/i, "Compras"],
+  [/tax|tribut|impost|iof|loan|empr[eé]st|financ|debt|d[ií]vida|interest|juros|late payment|overdraft|bank fee|tarifa/i, "Dívidas e Encargos"],
+  [/saving|poupan/i, "Reserva de Emergência"],
+  [/shopping|compras|cloth|vestu|electronic|eletr[oô]n|department|online|marketplace|store|loja/i, "Compras Pessoais"],
   [/transfer|pix|ted\b|doc\b|withdraw|saque/i, "Transferências"],
 ];
 const INCOME_RULES = [
-  [/salary|sal[aá]rio|payroll|wage|proventos|pension|aposent/i, "Salário"],
-  [/invest|interest|juros|dividend|yield|rendiment|redemption|resgate/i, "Investimentos"],
-  [/freelanc|business|neg[oó]cio|sales|vendas/i, "Freelance/Negócios"],
+  [/salary|sal[aá]rio|payroll|wage|proventos|pension|aposent/i, "Renda Principal"],
+  [/invest|interest|juros|dividend|yield|rendiment|redemption|resgate|benef/i, "Rendimentos e Benefícios"],
+  [/freelanc|business|neg[oó]cio|sales|vendas/i, "Renda Extra"],
+  [/transfer|pix|ted\b|doc\b/i, "Transferências"],
 ];
 
 export function mapCategory(t, type) {
@@ -155,7 +159,7 @@ export function mapCategory(t, type) {
     return { cat: "Cartões", kind: "transfer", auto: false };
   const rules = type === "income" ? INCOME_RULES : EXPENSE_RULES;
   for (const [re, cat] of rules) if (c && re.test(c)) return { cat, kind: "", auto: false };
-  return { cat: type === "income" ? "Outros Rendimentos" : "Outros", kind: "", auto: true };
+  return { cat: type === "income" ? "Renda Extra" : "Outros", kind: "", auto: true };
 }
 
 export function toFinDigo(t, acc, nowIso) {
