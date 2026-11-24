@@ -22,6 +22,7 @@ let selectedCard = null, cardInvKey = null;
 let selectedInv = null;
 let pendingTxs = [];
 let editingId = null;
+let pendingNfce = '';   // chave do cupom fiscal lido pela câmera, à espera do valor
 let modalType = 'expense';
 let sortCol = 'date', sortDir = -1;
 let saveTimer = null, saveDirty = false;
@@ -43,7 +44,7 @@ function fmtShort(v){
   return v.toFixed(0);
 }
 const monthKey = (d) => String(d).slice(0,7);
-const todayISO = () => new Date().toISOString().slice(0,10);
+const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0,10); };   // data local
 const curMonth = () => todayISO().slice(0,7);
 function monthLabel(key, full=false){
   const [y,m] = key.split('-');
@@ -191,6 +192,7 @@ function normalize(t){
     transferId: t.transferId || '',
     ref: t.ref || '',
     hidden: !!t.hidden,
+    ...(t.nfce ? { nfce: t.nfce } : {}),
     ...(t.recurId ? { recurId: t.recurId, recurIdx: Number(t.recurIdx) || 1, recurN: Number(t.recurN) || 1 } : {}),
   };
 }
@@ -330,6 +332,8 @@ const sumOf = (txs, type, status) => txs
 $$('#tabs .tab').forEach(tab => tab.addEventListener('click', () => {
   const name = tab.dataset.tab;
   $$('#tabs .tab').forEach(t => t.classList.toggle('active', t === tab));
+  $$('#bnav [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === name || (b.dataset.go === 'more' && !['summary','transactions','cards'].includes(name))));
+  if (window.scrollY > 0 && isMobile()) window.scrollTo({ top: 0 });
   ['summary','monthly','accounts','cards','investments','transactions','import','users'].forEach(p => {
     $('#panel-'+p).hidden = (p !== name);
   });
@@ -1113,7 +1117,7 @@ function openModal(id){
   $('#modal-overlay').hidden = false;
   setTimeout(() => $('#m-amount').focus(), 40);
 }
-const closeModal = () => { $('#modal-overlay').hidden = true; editingId = null; };
+const closeModal = () => { $('#modal-overlay').hidden = true; editingId = null; pendingNfce = ''; };
 $('#btn-add').addEventListener('click', () => openModal(null));
 $('#btn-close').addEventListener('click', closeModal);
 $('#modal-overlay').addEventListener('mousedown', e => { if (e.target.id === 'modal-overlay') closeModal(); });
@@ -1147,7 +1151,8 @@ $('#tx-form').addEventListener('submit', (e) => {
     source: 'manual',
   };
   const orig = editingId && transactions.find(t => t.id === editingId);
-  if (orig){ tx.kind = orig.kind; tx.transferId = orig.transferId; tx.ref = orig.ref; tx.source = orig.source; tx.hidden = !!orig.hidden; }
+  if (orig){ tx.kind = orig.kind; tx.transferId = orig.transferId; tx.ref = orig.ref; tx.source = orig.source; tx.hidden = !!orig.hidden; if (orig.nfce) tx.nfce = orig.nfce; }
+  else if (pendingNfce){ tx.nfce = pendingNfce; tx.source = 'cupom'; }
   if (!tx.date || !tx.desc || tx.amount <= 0) return;
   let msg = editingId ? 'Transação atualizada' : 'Transação adicionada';
   if (orig?.recurId){
@@ -2226,3 +2231,32 @@ $('#filter-toggle').addEventListener('click', () => {
   $('#filter-toggle').setAttribute('aria-expanded', String(open));
   if (open) redrawCharts();
 });
+
+
+// ══ MOBILE: barra inferior, botão + e menus ═════════════════
+const isMobile = () => window.matchMedia('(max-width: 760px)').matches;
+function closeSheets(){ $$('.sheet-ov:not(.scan-res)').forEach(o => o.hidden = true); document.body.classList.remove('no-scroll'); }
+function openSheet(id){ closeSheets(); $(id).hidden = false; document.body.classList.add('no-scroll'); }
+function goTab(name){ closeSheets(); document.querySelector(`#tabs .tab[data-tab="${name}"]`)?.click(); }
+$$('#bnav [data-go]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.go === 'more'){
+    $('#more-who').textContent = ME ? (ME.name || ME.username) : '—';
+    $('#more-users').hidden = !ME || ME.role !== 'admin';
+    $('#more-sync').textContent = $('#sync-txt').textContent;
+    openSheet('#sheet-more');
+  } else goTab(b.dataset.go);
+}));
+$$('#sheet-more [data-go]').forEach(b => b.addEventListener('click', () => goTab(b.dataset.go)));
+$('#more-export').addEventListener('click', () => { closeSheets(); $('#btn-export').click(); });
+$('#more-logout').addEventListener('click', () => { closeSheets(); $('#btn-logout').click(); });
+$('#bnav-add').addEventListener('click', () => openSheet('#sheet-add'));
+$$('#sheet-add [data-act]').forEach(b => b.addEventListener('click', () => {
+  const a = b.dataset.act; closeSheets();
+  if (a === 'expense' || a === 'income'){ openModal(null); setModalType(a); }
+  else if (a === 'transfer') openAccModal('transfer', selectedAcc || accounts[0]?.id);
+  else if (a === 'card') openCardModal('buy', selectedCard || cards[0]?.id || null);
+}));
+$$('.sheet-ov').forEach(o => o.addEventListener('click', e => { if (e.target === o){ if (o.id === 'scan-res') closeScanner(); else closeSheets(); } }));
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ closeSheets(); if (!$('#scan-ov').hidden || !$('#scan-res').hidden) closeScanner(); } });
+// metas recolhidas no celular para a lista aparecer logo
+if (isMobile()) { const g = $('.tx2-goals'); if (g) g.open = false; }

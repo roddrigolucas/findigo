@@ -45,6 +45,7 @@ export default async (req) => {
         transferId: String(t.transferId || "").slice(0, 40),
         ref: String(t.ref || "").slice(0, 20),
         ...(t.hidden ? { hidden: true } : {}),
+        ...(/^\d{44}$/.test(t.nfce || "") ? { nfce: t.nfce } : {}),
         ...(t.recurId ? {
           recurId: String(t.recurId).slice(0, 40),
           recurIdx: Math.max(1, Math.min(120, parseInt(t.recurIdx, 10) || 1)),
