@@ -58,7 +58,7 @@ function predictCategory(desc, type) {
     if (rule.r.test(d)) {
       const cat = rule.c;
       if (typeof INCOME_CATS !== 'undefined') {
-        if (type === 'income' && (INCOME_CATS.includes(cat) || cat === 'Transferências')) return cat;
+        if (type === 'income' && INCOME_CATS.includes(cat)) return cat;
         if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
       }
       if (type === 'expense') return cat;
@@ -77,7 +77,7 @@ function predictCategory(desc, type) {
   
   for (const cat in bayesModel.catCounts) {
     if (typeof INCOME_CATS !== 'undefined') {
-      if (type === 'income' && !INCOME_CATS.includes(cat) && cat !== 'Transferências') continue;
+      if (type === 'income' && !INCOME_CATS.includes(cat)) continue;
       if (type === 'expense' && INCOME_CATS.includes(cat)) continue;
     }
     

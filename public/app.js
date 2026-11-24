@@ -304,15 +304,7 @@ function getFiltered(){
   );
 }
 
-// movimentação entre contas: transferência lançada pela aba Contas OU categoria "Transferências"
-// (extrato importado, Open Finance, lançamento manual). Não é receita nem despesa.
-const MOVE_CAT = 'Transferências';
-const isMove = (t) => t.kind === 'transfer' || t.cat === MOVE_CAT;
 const sumOf = (txs, type, status) => txs
-  .filter(t => t.type === type && !isMove(t) && (!status || t.status === status))
-  .reduce((a,t) => a + t.amount, 0);
-// soma com efeito no caixa (inclui movimentações de categoria "Transferências", que mexem no saldo)
-const cashOf = (txs, type, status) => txs
   .filter(t => t.type === type && t.kind !== 'transfer' && (!status || t.status === status))
   .reduce((a,t) => a + t.amount, 0);
 
@@ -358,12 +350,12 @@ function renderSummary(){
   // Saldo líquido disponível: tudo que já foi realizado (inclui saldos iniciais das contas);
   // dinheiro aplicado em investimentos sai do "disponível"; compra no cartão já é gasto
   const netAvailable = accounts.reduce((a,x) => a + (Number(x.initial)||0), 0)
-    + cashOf(all,'income','paid') - cashOf(all,'expense','paid') - investedNetTransfers();
+    + sumOf(all,'income','paid') - sumOf(all,'expense','paid') - investedNetTransfers();
 
   const monthTx = all.filter(t => monthKey(t.date) === cm && !t.hidden);
   const incDone = sumOf(monthTx,'income','paid'),  incFc = sumOf(monthTx,'income','pending');
   const expDone = sumOf(monthTx,'expense','paid'), expFc = sumOf(monthTx,'expense','pending');
-  const proj = netAvailable + cashOf(monthTx,'income','pending') - cashOf(monthTx,'expense','pending');
+  const proj = netAvailable + incFc - expFc;
   const lastDay = `${daysIn(+cm.slice(0,4), +cm.slice(5,7))}/${cm.slice(5,7)}`;
 
   $('#k-net').textContent = fmtBRL(netAvailable);
@@ -428,7 +420,7 @@ function renderSummary(){
         d:`no ritmo atual, ${fmtBRL(pace)} no mês; média recente ${fmtBRL(avg)}` });
   }
   const catM = {};
-  monthTx.filter(t => t.type === 'expense' && !isMove(t)).forEach(t => catM[t.cat] = (catM[t.cat]||0) + t.amount);
+  monthTx.filter(t => t.type === 'expense' && t.kind !== 'transfer').forEach(t => catM[t.cat] = (catM[t.cat]||0) + t.amount);
   const topCat = Object.entries(catM).sort((a,b)=>b[1]-a[1])[0];
   if (topCat && expDone + expFc > 0) alerts.push({ lv:'info', t:`${topCat[0]} lidera os gastos do mês`, d:`${fmtBRL(topCat[1])} · ${Math.round(topCat[1]/(expDone+expFc)*100)}% das despesas` });
   $('#dash-alerts').innerHTML = alerts.length
@@ -568,7 +560,6 @@ function txTag(t){
   const m = t.kind === 'card' && /\((\d+)\/(\d+)\)\s*$/.exec(t.desc);
   if (m) return { cls:'violet', ico:'🗓️', txt:`Parcela ${m[1]}/${m[2]}` };
   if (t.recurId) return { cls:'violet', ico:'↻', txt:`Mensal ${t.recurIdx}/${t.recurN}${t.status === 'pending' ? ' · prevista' : ''}` };
-  if (t.cat === MOVE_CAT) return { cls:'blue', ico:'⇄', txt: t.status === 'pending' ? 'Movimentação · prevista' : 'Movimentação' };
   if (t.status === 'pending') return { cls:'amber', ico:'⏳', txt:'Prevista' };
   return null;
 }
@@ -590,9 +581,9 @@ function getTxList(){
     if (txView.acc && !sameName(t.account, txView.acc)) return false;
     if (txView.cat && t.cat !== txView.cat) return false;
     switch (txView.type){
-      case 'expense': if (t.type !== 'expense' || isMove(t)) return false; break;
-      case 'income': if (t.type !== 'income' || isMove(t)) return false; break;
-      case 'transfer': if (!isMove(t)) return false; break;
+      case 'expense': if (t.type !== 'expense' || t.kind === 'transfer') return false; break;
+      case 'income': if (t.type !== 'income' || t.kind === 'transfer') return false; break;
+      case 'transfer': if (t.kind !== 'transfer') return false; break;
       case 'card': if (t.kind !== 'card') return false; break;
       case 'pending': case 'paid': if (t.status !== txView.type) return false; break;
     }
@@ -629,7 +620,7 @@ function renderTx(){
   txList = f;
 
   // KPIs — transferências e ocultas não entram nos totais
-  const real = f.filter(t => !t.hidden && !isMove(t));
+  const real = f.filter(t => !t.hidden && t.kind !== 'transfer');
   const inc = real.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
   const exp = real.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
   const bal = r2(inc - exp);
@@ -822,8 +813,7 @@ $('#bulk-cat').addEventListener('change', (e) => {
   transactions.forEach(t => {
     if (selectedTxs.has(t.id) && t.kind !== 'transfer') {
       t.cat = cat;
-      if (cat === MOVE_CAT) {}                      // movimentação: mantém entrada/saída
-      else if (INCOME_CATS.includes(cat)) t.type = 'income';
+      if (INCOME_CATS.includes(cat)) t.type = 'income';
       else if (EXPENSE_CATS.includes(cat)) t.type = 'expense';
     }
   });
@@ -906,7 +896,7 @@ function drawMonthly(){
 
 function renderCats(){
   const el = $('#cat-bars'); if (!el) return;
-  const f = getFiltered().filter(t => t.type === 'expense' && !isMove(t));
+  const f = getFiltered().filter(t => t.type === 'expense' && t.kind !== 'transfer');
   const by = {};
   f.forEach(t => { by[t.cat] = (by[t.cat]||0) + t.amount; });
   const items = Object.entries(by).sort((a,b)=>b[1]-a[1]);
@@ -941,7 +931,7 @@ window.addEventListener('resize', redrawCharts);
 
 // ══ MODAL ═══════════════════════════════════════════════════
 function populateCatSelect(){
-  const list = modalType === 'income' ? [...INCOME_CATS, MOVE_CAT] : EXPENSE_CATS;
+  const list = modalType === 'income' ? INCOME_CATS : EXPENSE_CATS;
   const sel = $('#m-cat'), cur = sel.value;
   sel.innerHTML = list.map(c=>`<option>${esc(c)}</option>`).join('');
   if (list.includes(cur)) sel.value = cur;
@@ -1368,7 +1358,6 @@ function renderAccounts(){
 function kindLabel(t){
   if (t.kind === 'transfer') return cardOf(t) ? 'pag. fatura' : invOf(t) ? (t.type === 'income' ? 'aporte' : 'resgate') : 'transferência';
   if (t.kind === 'adjust') return 'manual';
-  if (t.cat === MOVE_CAT) return 'movimentação';
   if (t.kind === 'card') return 'cartão';
   if (t.recurId) return `recorrente ${t.recurIdx}/${t.recurN}`;
   return t.status === 'pending' ? 'prevista' : 'realizada';
