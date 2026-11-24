@@ -304,16 +304,36 @@ function getFiltered(){
   );
 }
 
-// movimentação entre contas: transferência lançada pela aba Contas OU categoria "Transferências"
-// (extrato importado, Open Finance, lançamento manual). Não é receita nem despesa.
-const MOVE_CAT = 'Transferências';
-const isMove = (t) => t.kind === 'transfer' || t.cat === MOVE_CAT;
+// ── movimentação entre contas de mesma titularidade ─────────
+// Uma saída numa conta sua + uma entrada do mesmo valor em OUTRA conta sua, até 3 dias
+// de diferença, com cara de transferência (PIX/TED/DOC/TRANSF ou categoria "Transferências"),
+// formam um par = movimentação: não é receita nem despesa.
+// PIX sem a ponta correspondente numa conta sua (pago a terceiros) continua sendo despesa/receita.
+let MOVE_IDS = new Set();
+const MOVE_RX = /\bpix\b|transf|\bted\b|\bdoc\b/i;
+function computeMoves(){
+  const own = (name) => accounts.some(a => sameName(a.name, name));
+  const looksMove = (t) => t.cat === 'Transferências' || MOVE_RX.test(t.desc);
+  const cand = transactions.filter(t => !t.kind && t.account && own(t.account));
+  const ins = cand.filter(t => t.type === 'income');
+  const outs = cand.filter(t => t.type === 'expense').sort((a,b) => a.date.localeCompare(b.date));
+  const used = new Set(), ids = new Set();
+  const days = (a,b) => Math.abs((Date.parse(a) - Date.parse(b)) / 864e5);
+  outs.forEach(o => {
+    let best = null, bestD = 99;
+    ins.forEach(i => {
+      if (used.has(i.id) || sameName(i.account, o.account) || Math.round(i.amount*100) !== Math.round(o.amount*100)) return;
+      if (!looksMove(o) && !looksMove(i)) return;
+      const d = days(i.date, o.date);
+      if (d <= 3 && d < bestD){ best = i; bestD = d; }
+    });
+    if (best){ used.add(best.id); ids.add(o.id); ids.add(best.id); }
+  });
+  MOVE_IDS = ids;
+}
+const isMove = (t) => t.kind === 'transfer' || MOVE_IDS.has(t.id);
 const sumOf = (txs, type, status) => txs
   .filter(t => t.type === type && !isMove(t) && (!status || t.status === status))
-  .reduce((a,t) => a + t.amount, 0);
-// soma com efeito no caixa (inclui movimentações de categoria "Transferências", que mexem no saldo)
-const cashOf = (txs, type, status) => txs
-  .filter(t => t.type === type && t.kind !== 'transfer' && (!status || t.status === status))
   .reduce((a,t) => a + t.amount, 0);
 
 // ══ ABAS ════════════════════════════════════════════════════
@@ -334,6 +354,7 @@ $$('#tabs .tab').forEach(tab => tab.addEventListener('click', () => {
 
 // ══ RENDER ══════════════════════════════════════════════════
 function renderAll(){
+  computeMoves();
   renderSummary();
   renderMonthly();
   renderTx();
@@ -358,12 +379,12 @@ function renderSummary(){
   // Saldo líquido disponível: tudo que já foi realizado (inclui saldos iniciais das contas);
   // dinheiro aplicado em investimentos sai do "disponível"; compra no cartão já é gasto
   const netAvailable = accounts.reduce((a,x) => a + (Number(x.initial)||0), 0)
-    + cashOf(all,'income','paid') - cashOf(all,'expense','paid') - investedNetTransfers();
+    + sumOf(all,'income','paid') - sumOf(all,'expense','paid') - investedNetTransfers();
 
   const monthTx = all.filter(t => monthKey(t.date) === cm && !t.hidden);
   const incDone = sumOf(monthTx,'income','paid'),  incFc = sumOf(monthTx,'income','pending');
   const expDone = sumOf(monthTx,'expense','paid'), expFc = sumOf(monthTx,'expense','pending');
-  const proj = netAvailable + cashOf(monthTx,'income','pending') - cashOf(monthTx,'expense','pending');
+  const proj = netAvailable + incFc - expFc;
   const lastDay = `${daysIn(+cm.slice(0,4), +cm.slice(5,7))}/${cm.slice(5,7)}`;
 
   $('#k-net').textContent = fmtBRL(netAvailable);
@@ -568,7 +589,7 @@ function txTag(t){
   const m = t.kind === 'card' && /\((\d+)\/(\d+)\)\s*$/.exec(t.desc);
   if (m) return { cls:'violet', ico:'🗓️', txt:`Parcela ${m[1]}/${m[2]}` };
   if (t.recurId) return { cls:'violet', ico:'↻', txt:`Mensal ${t.recurIdx}/${t.recurN}${t.status === 'pending' ? ' · prevista' : ''}` };
-  if (t.cat === MOVE_CAT) return { cls:'blue', ico:'⇄', txt: t.status === 'pending' ? 'Movimentação · prevista' : 'Movimentação' };
+  if (MOVE_IDS.has(t.id)) return { cls:'blue', ico:'⇄', txt:'Movimentação' };
   if (t.status === 'pending') return { cls:'amber', ico:'⏳', txt:'Prevista' };
   return null;
 }
@@ -822,8 +843,7 @@ $('#bulk-cat').addEventListener('change', (e) => {
   transactions.forEach(t => {
     if (selectedTxs.has(t.id) && t.kind !== 'transfer') {
       t.cat = cat;
-      if (cat === MOVE_CAT) {}                      // movimentação: mantém entrada/saída
-      else if (INCOME_CATS.includes(cat)) t.type = 'income';
+      if (INCOME_CATS.includes(cat)) t.type = 'income';
       else if (EXPENSE_CATS.includes(cat)) t.type = 'expense';
     }
   });
@@ -941,7 +961,7 @@ window.addEventListener('resize', redrawCharts);
 
 // ══ MODAL ═══════════════════════════════════════════════════
 function populateCatSelect(){
-  const list = modalType === 'income' ? [...INCOME_CATS, MOVE_CAT] : EXPENSE_CATS;
+  const list = modalType === 'income' ? INCOME_CATS : EXPENSE_CATS;
   const sel = $('#m-cat'), cur = sel.value;
   sel.innerHTML = list.map(c=>`<option>${esc(c)}</option>`).join('');
   if (list.includes(cur)) sel.value = cur;
@@ -1368,7 +1388,7 @@ function renderAccounts(){
 function kindLabel(t){
   if (t.kind === 'transfer') return cardOf(t) ? 'pag. fatura' : invOf(t) ? (t.type === 'income' ? 'aporte' : 'resgate') : 'transferência';
   if (t.kind === 'adjust') return 'manual';
-  if (t.cat === MOVE_CAT) return 'movimentação';
+  if (MOVE_IDS.has(t.id)) return 'movimentação';
   if (t.kind === 'card') return 'cartão';
   if (t.recurId) return `recorrente ${t.recurIdx}/${t.recurN}`;
   return t.status === 'pending' ? 'prevista' : 'realizada';
