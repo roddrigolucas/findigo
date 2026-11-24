@@ -71,6 +71,19 @@ Teste: `node ofsmoke.mjs` (Pluggy simulada + Blobs local + Chromium).
 O administrador é criado automaticamente na primeira chamada a `/api/auth`.
 Depois disso, altere a senha pelo próprio sistema (aba **Usuários**).
 
+## Leitura do cupom fiscal (câmera)
+
+No celular, toque no **+** da barra inferior → **Escanear cupom fiscal** (no computador, o ícone de leitor no topo).
+Aponte a câmera para o **QR Code** do rodapé da NFC-e / CF-e SAT — ou tire uma foto, ou digite a chave de 44 números.
+
+- O servidor (`/api/nfce`) lê a chave (UF, mês, CNPJ), abre a página oficial de consulta da SEFAZ (só domínios `.gov.br`)
+  para pegar total, data, itens e forma de pagamento, e consulta o CNPJ (BrasilAPI) para nome e atividade (CNAE).
+- A categoria/subcategoria vem da atividade da loja (CNAE) ou dos itens; a conta é a última usada no leitor
+  (compras no crédito vão para o cartão, se houver só um).
+- Com **"Lançar direto ao ler"** ligado, a transação entra na hora (com Desfazer/Editar). Se a SEFAZ não informar o valor,
+  abre o formulário já preenchido para você digitar só o total. O mesmo cupom não é lançado duas vezes.
+- Leitor: `BarcodeDetector` nativo quando existe; senão ZXing (`public/vendor/zxing.min.js`, Apache-2.0), carregado sob demanda.
+
 ## Desenvolvimento local
 
 ```bash

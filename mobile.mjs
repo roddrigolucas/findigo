@@ -11,6 +11,7 @@ const srv=http.createServer(async(req,res)=>{
     if(b.action==='login')return b.password==='194667'?send(200,{token:'t',user:USER}):send(401,{error:'credenciais_invalidas'});
     if(b.action==='session')return req.headers.authorization==='Bearer t'?send(200,{user:USER,exp:Date.now()+3.6e6}):send(401,{error:'sessao_expirada'});
     return send(200,{ok:true,users:[{...USER,active:true}]});}
+  if(u==='/api/openfinance')return send(200,{configured:false,items:[],lastSync:null});
   if(u==='/api/data'){if(req.method==='GET')return send(200,DB);let raw='';for await(const c of req)raw+=c;DB=JSON.parse(raw);return send(200,{ok:true});}
   const p=path.join(PUB,u==='/'?'index.html':u);
   if(!p.startsWith(PUB)||!fs.existsSync(p)){res.writeHead(404);return res.end('nf');}
@@ -36,13 +37,15 @@ await page.fill('#lg-user','roddrigolucas'); await page.fill('#lg-pass','194667'
 await page.tap('#lg-btn'); await page.waitForSelector('#app:not([hidden])');
 
 // lançar via toque
-await page.tap('#btn-add'); await page.waitForSelector('#modal-overlay:not([hidden])');
+// lançar via toque: botão + da barra inferior → Despesa/Receita
+const novo = async (t) => { await page.tap('#bnav-add'); await page.waitForSelector('#sheet-add:not([hidden])'); await page.tap(`#sheet-add [data-act="${t}"]`); await page.waitForSelector('#modal-overlay:not([hidden])'); };
+console.log('barra inferior:', await page.isVisible('#bnav') ? '✓' : '✗');
+await novo('income');
 await page.screenshot({path:'m-modal.png'});
-const hoje=new Date().toISOString().slice(0,10);
+const hoje=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 await page.fill('#m-date',hoje); await page.fill('#m-amount','4200'); await page.fill('#m-desc','Salário');
-await page.click('#type-seg button[data-t="income"]');
 await page.click('#tx-form button[type=submit]'); await page.waitForSelector('#modal-overlay',{state:'hidden'});
-await page.tap('#btn-add'); await page.waitForSelector('#modal-overlay:not([hidden])');
+await novo('expense');
 await page.fill('#m-date',hoje); await page.fill('#m-amount','1350'); await page.fill('#m-desc','Aluguel');
 await page.selectOption('#m-status','pending');
 await page.click('#tx-form button[type=submit]'); await page.waitForSelector('#modal-overlay',{state:'hidden'});
@@ -56,7 +59,7 @@ await page.tap('#filter-toggle'); await page.waitForTimeout(250);
 console.log('abrem ao tocar:', await page.isVisible('#f-cat')?'✓':'✗');
 await page.screenshot({path:'m-filtros.png'});
 await page.tap('#filter-toggle'); await page.waitForTimeout(250);
-await page.tap('#tabs .tab[data-tab="monthly"]'); await page.waitForTimeout(400);
+await page.tap('#bnav [data-go="more"]'); await page.tap('#sheet-more [data-go="monthly"]'); await page.waitForTimeout(400);
 await page.screenshot({path:'m-mensal.png'});
 
 // sem rolagem horizontal?
