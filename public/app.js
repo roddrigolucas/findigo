@@ -304,8 +304,36 @@ function getFiltered(){
   );
 }
 
+// ── movimentação entre contas de mesma titularidade ─────────
+// Uma saída numa conta sua + uma entrada do mesmo valor em OUTRA conta sua, até 3 dias
+// de diferença, com cara de transferência (PIX/TED/DOC/TRANSF ou categoria "Transferências"),
+// formam um par = movimentação: não é receita nem despesa.
+// PIX sem a ponta correspondente numa conta sua (pago a terceiros) continua sendo despesa/receita.
+let MOVE_IDS = new Set();
+const MOVE_RX = /\bpix\b|transf|\bted\b|\bdoc\b/i;
+function computeMoves(){
+  const own = (name) => accounts.some(a => sameName(a.name, name));
+  const looksMove = (t) => t.cat === 'Transferências' || MOVE_RX.test(t.desc);
+  const cand = transactions.filter(t => !t.kind && t.account && own(t.account));
+  const ins = cand.filter(t => t.type === 'income');
+  const outs = cand.filter(t => t.type === 'expense').sort((a,b) => a.date.localeCompare(b.date));
+  const used = new Set(), ids = new Set();
+  const days = (a,b) => Math.abs((Date.parse(a) - Date.parse(b)) / 864e5);
+  outs.forEach(o => {
+    let best = null, bestD = 99;
+    ins.forEach(i => {
+      if (used.has(i.id) || sameName(i.account, o.account) || Math.round(i.amount*100) !== Math.round(o.amount*100)) return;
+      if (!looksMove(o) && !looksMove(i)) return;
+      const d = days(i.date, o.date);
+      if (d <= 3 && d < bestD){ best = i; bestD = d; }
+    });
+    if (best){ used.add(best.id); ids.add(o.id); ids.add(best.id); }
+  });
+  MOVE_IDS = ids;
+}
+const isMove = (t) => t.kind === 'transfer' || MOVE_IDS.has(t.id);
 const sumOf = (txs, type, status) => txs
-  .filter(t => t.type === type && t.kind !== 'transfer' && (!status || t.status === status))
+  .filter(t => t.type === type && !isMove(t) && (!status || t.status === status))
   .reduce((a,t) => a + t.amount, 0);
 
 // ══ ABAS ════════════════════════════════════════════════════
@@ -326,6 +354,7 @@ $$('#tabs .tab').forEach(tab => tab.addEventListener('click', () => {
 
 // ══ RENDER ══════════════════════════════════════════════════
 function renderAll(){
+  computeMoves();
   renderSummary();
   renderMonthly();
   renderTx();
@@ -420,7 +449,7 @@ function renderSummary(){
         d:`no ritmo atual, ${fmtBRL(pace)} no mês; média recente ${fmtBRL(avg)}` });
   }
   const catM = {};
-  monthTx.filter(t => t.type === 'expense' && t.kind !== 'transfer').forEach(t => catM[t.cat] = (catM[t.cat]||0) + t.amount);
+  monthTx.filter(t => t.type === 'expense' && !isMove(t)).forEach(t => catM[t.cat] = (catM[t.cat]||0) + t.amount);
   const topCat = Object.entries(catM).sort((a,b)=>b[1]-a[1])[0];
   if (topCat && expDone + expFc > 0) alerts.push({ lv:'info', t:`${topCat[0]} lidera os gastos do mês`, d:`${fmtBRL(topCat[1])} · ${Math.round(topCat[1]/(expDone+expFc)*100)}% das despesas` });
   $('#dash-alerts').innerHTML = alerts.length
@@ -560,6 +589,7 @@ function txTag(t){
   const m = t.kind === 'card' && /\((\d+)\/(\d+)\)\s*$/.exec(t.desc);
   if (m) return { cls:'violet', ico:'🗓️', txt:`Parcela ${m[1]}/${m[2]}` };
   if (t.recurId) return { cls:'violet', ico:'↻', txt:`Mensal ${t.recurIdx}/${t.recurN}${t.status === 'pending' ? ' · prevista' : ''}` };
+  if (MOVE_IDS.has(t.id)) return { cls:'blue', ico:'⇄', txt:'Movimentação' };
   if (t.status === 'pending') return { cls:'amber', ico:'⏳', txt:'Prevista' };
   return null;
 }
@@ -581,9 +611,9 @@ function getTxList(){
     if (txView.acc && !sameName(t.account, txView.acc)) return false;
     if (txView.cat && t.cat !== txView.cat) return false;
     switch (txView.type){
-      case 'expense': if (t.type !== 'expense' || t.kind === 'transfer') return false; break;
-      case 'income': if (t.type !== 'income' || t.kind === 'transfer') return false; break;
-      case 'transfer': if (t.kind !== 'transfer') return false; break;
+      case 'expense': if (t.type !== 'expense' || isMove(t)) return false; break;
+      case 'income': if (t.type !== 'income' || isMove(t)) return false; break;
+      case 'transfer': if (!isMove(t)) return false; break;
       case 'card': if (t.kind !== 'card') return false; break;
       case 'pending': case 'paid': if (t.status !== txView.type) return false; break;
     }
@@ -620,7 +650,7 @@ function renderTx(){
   txList = f;
 
   // KPIs — transferências e ocultas não entram nos totais
-  const real = f.filter(t => !t.hidden && t.kind !== 'transfer');
+  const real = f.filter(t => !t.hidden && !isMove(t));
   const inc = real.filter(t => t.type === 'income').reduce((s,t) => s + t.amount, 0);
   const exp = real.filter(t => t.type === 'expense').reduce((s,t) => s + t.amount, 0);
   const bal = r2(inc - exp);
@@ -896,7 +926,7 @@ function drawMonthly(){
 
 function renderCats(){
   const el = $('#cat-bars'); if (!el) return;
-  const f = getFiltered().filter(t => t.type === 'expense' && t.kind !== 'transfer');
+  const f = getFiltered().filter(t => t.type === 'expense' && !isMove(t));
   const by = {};
   f.forEach(t => { by[t.cat] = (by[t.cat]||0) + t.amount; });
   const items = Object.entries(by).sort((a,b)=>b[1]-a[1]);
@@ -1358,6 +1388,7 @@ function renderAccounts(){
 function kindLabel(t){
   if (t.kind === 'transfer') return cardOf(t) ? 'pag. fatura' : invOf(t) ? (t.type === 'income' ? 'aporte' : 'resgate') : 'transferência';
   if (t.kind === 'adjust') return 'manual';
+  if (MOVE_IDS.has(t.id)) return 'movimentação';
   if (t.kind === 'card') return 'cartão';
   if (t.recurId) return `recorrente ${t.recurIdx}/${t.recurN}`;
   return t.status === 'pending' ? 'prevista' : 'realizada';
