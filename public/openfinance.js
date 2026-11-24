@@ -149,8 +149,8 @@ function ofRecategorize(){
   let n = 0;
   transactions.forEach(t => {
     if (t.source !== 'openfinance' || t.ref !== 'of-auto') return;
-    const c = predictCategory(t.desc, t.type);
-    if (c && ALL_CATS.includes(c)) t.cat = c;
+    const c = classify(t.desc, t.type);
+    if (c && ALL_CATS.includes(c.cat)){ t.cat = c.cat; t.sub = c.sub; }
     t.ref = ''; n++;
   });
   if (n) persist();

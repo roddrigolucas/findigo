@@ -35,6 +35,7 @@ export default async (req) => {
         date: String(t.date || "").slice(0, 10),
         desc: String(t.desc || "").slice(0, 240),
         cat: String(t.cat || "Outros").slice(0, 60),
+        sub: String(t.sub || "").slice(0, 60),
         type: t.type === "income" ? "income" : "expense",
         amount: Number(t.amount) || 0,
         account: String(t.account || "").slice(0, 60),

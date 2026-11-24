@@ -102,7 +102,7 @@ check('saldo projetado = 5800+1500−900', proj === 6400, `R$ ${proj}`);
 
 // categorização automática
 const catAluguel = await page.$eval('#tx-table tbody', el => el.textContent);
-check('categorizou "Aluguel" como Moradia', catAluguel.includes('Moradia'));
+check('categorizou "Aluguel" como Habitação › Aluguel', catAluguel.includes('Habitação') && catAluguel.includes('› Aluguel'));
 check('categorizou "Fatura Nubank" como Cartões', catAluguel.includes('Cartões'));
 
 // previstos aparecem no resumo
