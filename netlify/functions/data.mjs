@@ -29,8 +29,7 @@ export default async (req) => {
     if (!Array.isArray(body.transactions)) return json({ error: "formato_invalido" }, 400);
     if (body.transactions.length > 50000) return json({ error: "excede_limite" }, 413);
 
-    const clean = pruneToTwoYears(
-      body.transactions.map((t) => ({
+    const tx = (t, deep) => ({
         id: String(t.id || crypto.randomUUID()),
         date: String(t.date || "").slice(0, 10),
         desc: String(t.desc || "").slice(0, 240),
@@ -46,12 +45,16 @@ export default async (req) => {
         ref: String(t.ref || "").slice(0, 20),
         ...(t.hidden ? { hidden: true } : {}),
         ...(/^\d{44}$/.test(t.nfce || "") ? { nfce: t.nfce } : {}),
+        ...(deep && Array.isArray(t.mergedFrom) && t.mergedFrom.length
+          ? { mergedFrom: t.mergedFrom.slice(0, 10).map((o) => tx(o, false)) } : {}),
         ...(t.recurId ? {
           recurId: String(t.recurId).slice(0, 40),
           recurIdx: Math.max(1, Math.min(120, parseInt(t.recurIdx, 10) || 1)),
           recurN: Math.max(1, Math.min(120, parseInt(t.recurN, 10) || 1)),
         } : {}),
-      })).filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.date))
+      });
+    const clean = pruneToTwoYears(
+      body.transactions.map((t) => tx(t, true)).filter((t) => /^\d{4}-\d{2}-\d{2}$/.test(t.date))
     );
 
     const accounts = Array.isArray(body.accounts)
