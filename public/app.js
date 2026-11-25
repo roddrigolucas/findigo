@@ -193,6 +193,7 @@ function normalize(t){
     ref: t.ref || '',
     hidden: !!t.hidden,
     ...(t.nfce ? { nfce: t.nfce } : {}),
+    ...(Array.isArray(t.mergedFrom) && t.mergedFrom.length ? { mergedFrom: t.mergedFrom } : {}),
     ...(t.recurId ? { recurId: t.recurId, recurIdx: Number(t.recurIdx) || 1, recurN: Number(t.recurN) || 1 } : {}),
   };
 }
@@ -694,6 +695,7 @@ function txTag(t){
   }
   const m = t.kind === 'card' && /\((\d+)\/(\d+)\)\s*$/.exec(t.desc);
   if (m) return { cls:'violet', ico:'🗓️', txt:`Parcela ${m[1]}/${m[2]}` };
+  if (t.mergedFrom?.length) return { cls:'blue', ico:'⧉', txt:`Combinada (${t.mergedFrom.length})${t.recurId ? ' · mensal ' + t.recurIdx + '/' + t.recurN : ''}`, title: 'Combinada de: ' + t.mergedFrom.map(o => `${o.desc} (${fmtDMY(o.date)}, ${fmtBRL(o.amount)})`).join(' + ') };
   if (t.recurId) return { cls:'violet', ico:'↻', txt:`Mensal ${t.recurIdx}/${t.recurN}${t.status === 'pending' ? ' · prevista' : ''}` };
   if (MOVE_IDS.has(t.id)) return { cls:'blue', ico:'⇄', txt:'Movimentação' };
   if (t.status === 'pending') return { cls:'amber', ico:'⏳', txt:'Prevista' };
@@ -799,7 +801,7 @@ function renderTx(){
     return `<tr class="${sel ? 'selected' : ''} ${dim ? 'dim' : ''}" data-id="${t.id}">
     <td class="chk-col"><input type="checkbox" class="chk-row" data-id="${t.id}" ${sel?'checked':''} aria-label="Selecionar"></td>
     <td><div class="tx2-desc"><span class="tx2-av" style="--c:${col}">${catIcon(t.cat)}</span><span class="tx2-dtxt">${esc(t.desc)}</span>${t.source==='openfinance'?'<span class="tx2-of" title="Importada automaticamente via Open Finance">OF</span>':''}${t.hidden?'<span class="tx2-hid" title="Oculta">oculta</span>':''}</div></td>
-    <td><div class="tx2-cats"><span class="tx2-cat" title="${esc(groupOf(t.cat)?.name || 'Fora dos grupos')}"><i>${catIcon(t.cat)}</i>${esc(t.cat)}${t.sub ? `<small class="tx2-sub">› ${esc(t.sub)}</small>` : ''}</span>${tag ? `<span class="tx2-tag ${tag.cls}"><i>${tag.ico}</i>${tag.txt}</span>` : ''}</div></td>
+    <td><div class="tx2-cats"><span class="tx2-cat" title="${esc(groupOf(t.cat)?.name || 'Fora dos grupos')}"><i>${catIcon(t.cat)}</i>${esc(t.cat)}${t.sub ? `<small class="tx2-sub">› ${esc(t.sub)}</small>` : ''}</span>${tag ? `<span class="tx2-tag ${tag.cls}"${tag.title ? ` title="${esc(tag.title)}"` : ''}><i>${tag.ico}</i>${tag.txt}</span>` : ''}</div></td>
     <td class="tx2-acc">${t.account ? `<span class="tx2-acc-ico" style="--c:${esc(ac)}">${esc(t.account.trim().charAt(0).toUpperCase())}</span>${esc(t.account)}` : '<span class="muted">—</span>'}</td>
     <td class="tx2-date">${fmtDMY(t.date)}</td>
     <td class="num tx2-val ${neg ? '' : 'pos'}">${neg ? '' : '+'}${fmtBRL(t.amount)}</td>
@@ -838,6 +840,7 @@ function openTxMenu(btn){
   menu.innerHTML = `
     <button data-act="edit">✎ Editar</button>
     ${t.kind === 'transfer' ? '' : '<button data-act="dup">⧉ Duplicar</button>'}
+    ${t.mergedFrom?.length ? `<button data-act="split">↩ Separar combinação (${t.mergedFrom.length})</button>` : ''}
     <button data-act="hide">${t.hidden ? '👁 Mostrar novamente' : '🙈 Ocultar'}</button>
     ${t.status === 'pending' ? '<button data-act="paid">✓ Marcar como realizada</button>' : ''}
     <button data-act="del" class="danger">🗑 Excluir</button>`;
@@ -850,6 +853,7 @@ function openTxMenu(btn){
     const act = b.dataset.act; closeTxMenu();
     if (act === 'edit') openModal(id);
     else if (act === 'del') deleteTx(id);
+    else if (act === 'split') splitMerged(id);
     else if (act === 'hide'){
       const group = t.kind === 'transfer' && t.transferId ? transactions.filter(x => x.transferId === t.transferId) : [t];
       const v = !t.hidden; group.forEach(x => x.hidden = v);
@@ -857,7 +861,8 @@ function openTxMenu(btn){
     } else if (act === 'paid'){
       t.status = 'paid'; persist(); renderAll(); toast('Marcada como realizada');
     } else if (act === 'dup'){
-      transactions.push({ ...t, id: uid(), transferId:'', hidden:false, source:'manual' });
+      const { mergedFrom, nfce, recurId, recurIdx, recurN, ...rest } = t;
+      transactions.push({ ...rest, id: uid(), transferId:'', hidden:false, source:'manual' });
       persist(); populateFilters(); renderAll(); toast('Transação duplicada');
     }
   }));
@@ -890,7 +895,8 @@ $('#tx-show-hidden').addEventListener('change', e => { txView.showHidden = e.tar
 let txSearchT = null;
 $('#tx-search').addEventListener('input', e => { clearTimeout(txSearchT); txSearchT = setTimeout(() => { txView.q = e.target.value; txView.limit = 150; renderTx(); }, 120); });
 $('#btn-tx-new').addEventListener('click', () => openModal(null));
-$('#btn-dedupe').addEventListener('click', () => { try { localStorage.removeItem('fn_dedupe_skip'); } catch {} offerDedupe(false); });
+$('#btn-dedupe').addEventListener('click', () => openRepeatsSheet());
+$('#btn-bulk-merge').addEventListener('click', () => openMergeSheet([...selectedTxs]));
 $('#btn-tx-more').addEventListener('click', () => { txView.limit += 150; renderTx(); });
 
 $$('#tx-table th.sortable').forEach(th => th.addEventListener('click', () => {
@@ -921,6 +927,7 @@ function updateBulkBar() {
     }
     const allHidden = transactions.filter(t => selectedTxs.has(t.id)).every(t => t.hidden);
     $('#btn-bulk-hide').textContent = allHidden ? 'Mostrar' : 'Ocultar';
+    $('#btn-bulk-merge').hidden = count < 2;
   } else {
     bar.hidden = true;
     $('#bulk-cat').value = '';

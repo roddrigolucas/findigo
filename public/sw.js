@@ -2,9 +2,9 @@
    Regra central: NADA de /api/ é armazenado em cache.
    Dados financeiros e sessão sempre vêm da rede. */
 
-const VERSION = 'findigo-v15';
+const VERSION = 'findigo-v16';
 const SHELL = [
-  '/', '/index.html', '/app.css', '/app.js', '/taxonomy.js', '/parsers.js', '/openfinance.js', '/scanner.js',
+  '/', '/index.html', '/app.css', '/app.js', '/taxonomy.js', '/parsers.js', '/openfinance.js', '/merge.js', '/scanner.js',
   '/manifest.json', '/icon-192.png', '/icon-512.png',
 ];
 
