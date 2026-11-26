@@ -5,51 +5,51 @@
      2. Essenciais  ≤ 50%   3. Estilo de vida ≤ 30%   4. Futuro ≥ 20%           */
 
 const GROUPS = [
-  { id:'g1', n:1, name:'Receitas', full:'Receitas (Entradas)', type:'income', color:'#3DFF9E',
+  { id:'g1', n:1, name:'Receitas', full:'Receitas (Entradas)', type:'income', color:'#12A66A',
     hint:'Separe o que é previsível do que é pontual para não comprometer o orçamento fixo contando com dinheiro incerto.',
     cats:[
-      { name:'Renda Principal',          icon:'💼', color:'#3DFF9E', subs:['Salário'] },
-      { name:'Renda Extra',              icon:'🧑‍💻', color:'#5CFFC8', subs:['Renda extra'] },
-      { name:'Rendimentos e Benefícios', icon:'💰', color:'#00E5FF', subs:['Dividendos','Rendimentos de aplicações','Vale-alimentação/refeição','Restituição de IR'] },
+      { name:'Renda Principal',          icon:'💼', color:'#12A66A', subs:['Salário'] },
+      { name:'Renda Extra',              icon:'🧑‍💻', color:'#34C38F', subs:['Renda extra'] },
+      { name:'Rendimentos e Benefícios', icon:'💰', color:'#0DB27A', subs:['Dividendos','Rendimentos de aplicações','Vale-alimentação/refeição','Restituição de IR'] },
     ] },
-  { id:'g2', n:2, name:'Despesas Essenciais', full:'Despesas Essenciais (Necessidades)', type:'expense', color:'#FF6B3D',
+  { id:'g2', n:2, name:'Despesas Essenciais', full:'Despesas Essenciais (Necessidades)', type:'expense', color:'#F97316',
     goal:{ op:'max', pct:50, label:'até 50% da renda' },
     hint:'Gastos indispensáveis para manter a moradia, saúde e capacidade de gerar renda.',
     cats:[
-      { name:'Habitação',         icon:'🏠', color:'#FF6B3D', subs:['Aluguel','Condomínio','IPTU','Seguro residencial','Manutenção básica'] },
-      { name:'Contas de Consumo', icon:'💡', color:'#5EEAD4', subs:['Contas de casa','Contas pessoais','Assinaturas essenciais'] },
-      { name:'Alimentação',       icon:'🛒', color:'#FF2E97', subs:['Essencial casa','Essencial pessoal','Extra casa'] },
-      { name:'Transporte',        icon:'🚗', color:'#FFC44D', subs:['Combustível para trabalho','Combustível para estudo','Aplicativos (lazer)','IPVA e seguro auto','Manutenção preventiva','Estacionamento'] },
-      { name:'Saúde',             icon:'🩺', color:'#FF4D6D', subs:['Remédios Vó','Remédios atípicos','Venvanse','Remédios Rodrigo'] },
-      { name:'Educação',          icon:'📚', color:'#4D9BFF', subs:['Gastos com cursos'] },
+      { name:'Habitação',         icon:'🏠', color:'#F97316', subs:['Aluguel','Condomínio','IPTU','Seguro residencial','Manutenção básica'] },
+      { name:'Contas de Consumo', icon:'💡', color:'#14B8A6', subs:['Contas de casa','Contas pessoais','Assinaturas essenciais'] },
+      { name:'Alimentação',       icon:'🛒', color:'#EF4444', subs:['Essencial casa','Essencial pessoal','Extra casa'] },
+      { name:'Transporte',        icon:'🚗', color:'#F5A524', subs:['Combustível para trabalho','Combustível para estudo','Aplicativos (lazer)','IPVA e seguro auto','Manutenção preventiva','Estacionamento'] },
+      { name:'Saúde',             icon:'🩺', color:'#E11D48', subs:['Remédios Vó','Remédios atípicos','Venvanse','Remédios Rodrigo'] },
+      { name:'Educação',          icon:'📚', color:'#3B82F6', subs:['Gastos com cursos'] },
     ] },
-  { id:'g3', n:3, name:'Estilo de Vida e Lazer', full:'Estilo de Vida e Lazer (Desejos)', type:'expense', color:'#A472FF',
+  { id:'g3', n:3, name:'Estilo de Vida e Lazer', full:'Estilo de Vida e Lazer (Desejos)', type:'expense', color:'#7C5CFC',
     goal:{ op:'max', pct:30, label:'até 30% da renda' },
     hint:'Gastos variáveis que trazem conforto, mas que podem ser cortados ou reduzidos rapidamente em caso de imprevistos.',
     cats:[
-      { name:'Alimentação Fora',       icon:'🍽️', color:'#FF7AC8', subs:['Restaurantes','Bares','Delivery (iFood)','Cafés e lanches'] },
-      { name:'Lazer e Cultura',        icon:'🎬', color:'#A472FF', subs:['Cinema','Shows','Viagens','Passeios','Hobbies','Jogos'] },
-      { name:'Assinaturas e Serviços', icon:'📺', color:'#C77DFF', subs:['Streaming','Academia','Clubes','Aplicativos pagos','Armazenamento em nuvem'] },
-      { name:'Compras Pessoais',       icon:'🛍️', color:'#FF9EDB', subs:['Vestuário','Calçados','Eletrônicos','Cosméticos','Presentes','Decoração'] },
-      { name:'Cuidados Pessoais',      icon:'💇', color:'#FFB3C7', subs:['Salão de beleza','Barbearia','Estética','Massagem'] },
-      { name:'Pets',                   icon:'🐾', color:'#9EFF5E', subs:['Ração','Veterinário','Banho e tosa','Medicamentos','Acessórios'] },
-      { name:'Esportes',               icon:'🏐', color:'#FFE066', subs:['Academia','Vôlei'] },
+      { name:'Alimentação Fora',       icon:'🍽️', color:'#EC4899', subs:['Restaurantes','Bares','Delivery (iFood)','Cafés e lanches'] },
+      { name:'Lazer e Cultura',        icon:'🎬', color:'#7C5CFC', subs:['Cinema','Shows','Viagens','Passeios','Hobbies','Jogos'] },
+      { name:'Assinaturas e Serviços', icon:'📺', color:'#A855F7', subs:['Streaming','Academia','Clubes','Aplicativos pagos','Armazenamento em nuvem'] },
+      { name:'Compras Pessoais',       icon:'🛍️', color:'#D946EF', subs:['Vestuário','Calçados','Eletrônicos','Cosméticos','Presentes','Decoração'] },
+      { name:'Cuidados Pessoais',      icon:'💇', color:'#F472B6', subs:['Salão de beleza','Barbearia','Estética','Massagem'] },
+      { name:'Pets',                   icon:'🐾', color:'#65A30D', subs:['Ração','Veterinário','Banho e tosa','Medicamentos','Acessórios'] },
+      { name:'Esportes',               icon:'🏐', color:'#EAB308', subs:['Academia','Vôlei'] },
     ] },
-  { id:'g4', n:4, name:'Metas, Investimentos e Dívidas', full:'Metas, Investimentos e Dívidas (Futuro)', type:'expense', color:'#00E5FF',
+  { id:'g4', n:4, name:'Metas, Investimentos e Dívidas', full:'Metas, Investimentos e Dívidas (Futuro)', type:'expense', color:'#0EA5E9',
     goal:{ op:'min', pct:20, label:'mínimo 20% da renda' },
     hint:'Trate os aportes como um "boleto" prioritário logo que a receita entrar na conta.',
     cats:[
-      { name:'Reserva de Emergência', icon:'🐷', color:'#3DFFD6', subs:['Poupar reserva'] },
-      { name:'Objetivos Específicos', icon:'🎯', color:'#00B8FF', subs:['Fundo para viagem','Troca de carro','Entrada de imóvel','Casamento'] },
-      { name:'Dívidas e Encargos',    icon:'📉', color:'#FF5C5C', subs:['Parcelamento de fatura','Empréstimos, cheque especial e tarifas'] },
+      { name:'Reserva de Emergência', icon:'🐷', color:'#06B6D4', subs:['Poupar reserva'] },
+      { name:'Objetivos Específicos', icon:'🎯', color:'#0EA5E9', subs:['Fundo para viagem','Troca de carro','Entrada de imóvel','Casamento'] },
+      { name:'Dívidas e Encargos',    icon:'📉', color:'#DC2626', subs:['Parcelamento de fatura','Empréstimos, cheque especial e tarifas'] },
     ] },
 ];
 
 // categorias de sistema (fora dos 4 grupos)
 const SPECIAL_CATS = [
-  { name:'Transferências', icon:'🔁', color:'#8E9BCC', subs:['Entre contas'], both:true },   // PIX/TED: movimentação se for entre contas suas
-  { name:'Cartões',        icon:'💳', color:'#00B8FF', subs:['Pagamento de fatura'] },
-  { name:'Outros',         icon:'📦', color:'#6E7BAE', subs:['A classificar'] },
+  { name:'Transferências', icon:'🔁', color:'#94A3B8', subs:['Entre contas'], both:true },   // PIX/TED: movimentação se for entre contas suas
+  { name:'Cartões',        icon:'💳', color:'#6366F1', subs:['Pagamento de fatura'] },
+  { name:'Outros',         icon:'📦', color:'#9CA3AF', subs:['A classificar'] },
 ];
 
 const CAT_INFO = {};            // nome → { name, icon, color, subs, group }
