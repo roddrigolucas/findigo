@@ -91,7 +91,7 @@ function renderOF(){
     const needsReconnect = ['LOGIN_ERROR','OUTDATED','WAITING_USER_INPUT'].includes(it.status);
     const logo = it.connector.imageUrl
       ? `<img class="of-logo" src="${esc(it.connector.imageUrl)}" alt="" loading="lazy">`
-      : `<span class="of-logo of-logo-txt" style="--c:${esc(it.connector.primaryColor ? '#' + it.connector.primaryColor.replace('#','') : '#00E5FF')}">${esc(it.connector.name.charAt(0))}</span>`;
+      : `<span class="of-logo of-logo-txt" style="--c:${esc(it.connector.primaryColor ? '#' + it.connector.primaryColor.replace('#','') : '#0DB27A')}">${esc(it.connector.name.charAt(0))}</span>`;
     const rows = it.accounts.map(a => {
       const tb = a.target ? ofTargetBalance(a) : null;
       let diff = '';

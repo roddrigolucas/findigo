@@ -3,7 +3,7 @@
 // ── Constantes ──────────────────────────────────────────────
 // categorias, subcategorias e grupos: ver taxonomy.js (GROUPS, CAT_INFO, INCOME_CATS, EXPENSE_CATS, ALL_CATS)
 const ACCOUNTS = ['Santander', 'Nubank', 'Caixa Poup.Rodrigo', 'Caixa Vó', 'BB Vó', 'Inter', 'Em caixa (efetivo)'];
-const ACC_COLORS = ['#FF2E4D','#A472FF','#3D8BFF','#00B8FF','#FFE066','#FF7A00','#3DFF9E'];
+const ACC_COLORS = ['#EC0000','#820AD1','#3B82F6','#0EA5E9','#F5A524','#FF7A00','#12A66A'];
 const DEFAULT_ACCOUNTS = ACCOUNTS.map((name,i) => ({ id:'acc'+i, name, initial:0, color: ACC_COLORS[i % ACC_COLORS.length] }));
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -70,6 +70,17 @@ function toast(msg){
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200);
 }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// número que "corre" do valor anterior até o novo
+function countUp(el, to){
+  if (!el) return;
+  const from = Number(el.dataset.v ?? 0); el.dataset.v = to;
+  if (from === to || window.matchMedia('(prefers-reduced-motion: reduce)').matches){ el.textContent = fmtBRL(to); return; }
+  const t0 = performance.now(), dur = 800;
+  const step = (now) => { const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmtBRL(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+window.addEventListener('scroll', () => document.body.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 
 // ══ API ═════════════════════════════════════════════════════
@@ -434,28 +445,106 @@ function goalStats(list, from, to){
   const outside = exp.filter(t => !groupOf(t.cat));
   return { renda, rows, outside: outside.reduce((s,t) => s + t.amount, 0), outsideN: outside.length };
 }
+// ── animação: os gráficos partem do último valor mostrado e avançam até o novo ──
+const GOAL_PREV = new Map();
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function tween(dur, fn){
+  if (reducedMotion() || document.hidden){ fn(1); return; }
+  const t0 = performance.now();
+  const step = (now) => { const k = Math.min(1, (now - t0) / dur); fn(1 - Math.pow(1 - k, 3)); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+const RING_R = 42, RING_C = 2 * Math.PI * RING_R;
+const arc = (cls, color, extra = '') => `<circle class="${cls}" cx="50" cy="50" r="${RING_R}" style="stroke:${color}" stroke-dasharray="0 ${RING_C}" ${extra}/>`;
+function setArc(c, start, len){ c.style.opacity = len > 0.002 ? 1 : 0; c.setAttribute('stroke-dasharray', `${Math.max(0, len * RING_C)} ${RING_C}`); c.setAttribute('stroke-dashoffset', String(-start * RING_C)); }
+
 function renderGoals(el, list, from, to){
   if (!el) return;
   const st = goalStats(list, from, to);
   const pct = (v) => st.renda > 0 ? v / st.renda * 100 : 0;
   const fmtP = (p) => `${p.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
-  el.innerHTML = st.rows.map(({ g, val, cats }) => {
-    const top = cats.slice(0, 3).map(([c, v]) => `${esc(c)} ${fmtBRL(v)}`).join(' · ');
-    if (g.type === 'income') return `<div class="goal goal-inc" style="--gc:${g.color}">
-      <div class="goal-h"><b>${g.n}. ${esc(g.name)}</b><span class="goal-v pos">${fmtBRL(val)}</span></div>
-      <div class="goal-note">base das metas${top ? ' · ' + top : ''}</div></div>`;
+  const inc = st.rows.find(r => r.g.type === 'income');
+  const outs = st.rows.filter(r => r.g.type !== 'income');
+
+  // 1) pizza da renda: quanto de cada R$ 100 recebidos foi para cada grupo
+  const used = outs.reduce((a, r) => a + r.val, 0);
+  const base = Math.max(st.renda, used) || 1;
+  const segs = outs.map(r => ({ key: r.g.id, color: r.g.color, f: r.val / base }));
+  const livre = st.renda > used ? (st.renda - used) / base : 0;
+  const committed = pct(used);
+  const topInc = inc.cats.slice(0, 2).map(([c, v]) => `${esc(c)} ${fmtBRL(v)}`).join(' · ');
+  const split = `<div class="goal gl-split">
+    <div class="gl-split-h"><span class="gl-eyebrow">Divisão da renda</span><span class="goal-v pos">${fmtBRL(st.renda)}</span></div>
+    <div class="gl-split-b">
+      <div class="gl-pie">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="gl-bg" cx="50" cy="50" r="${RING_R}"/>
+          ${segs.map(s => arc('gl-seg', s.color, `data-k="${s.key}"`)).join('')}
+          ${arc('gl-seg gl-free', 'var(--brand-3)', 'data-k="free"')}
+        </svg>
+        <div class="gl-mid"><b data-n="committed">0%</b><small>${used > st.renda && st.renda ? 'acima da renda' : 'da renda usada'}</small></div>
+      </div>
+      <ul class="gl-legend">
+        ${outs.map(r => `<li style="--gc:${r.g.color}"><i></i><span>${esc(r.g.name)}</span><b>${st.renda ? fmtP(pct(r.val)) : '—'}</b><small>meta ${r.g.goal.op === 'max' ? '≤' : '≥'} ${r.g.goal.pct}%</small></li>`).join('')}
+        <li class="free"><i></i><span>Livre</span><b>${st.renda ? fmtP(Math.max(0, 100 - committed)) : '—'}</b><small>${fmtBRL(Math.max(0, st.renda - used))}</small></li>
+      </ul>
+    </div>
+    <div class="goal-note">${st.renda ? 'base das metas' : 'sem receitas no período'}${topInc ? ' · ' + topInc : ''}</div>
+  </div>`;
+
+  // 2) um anel por meta — enche conforme o gasto/aporte cresce rumo ao limite (ou ao mínimo)
+  const rings = outs.map(({ g, val, cats }) => {
     const p = pct(val), goal = g.goal;
+    const prog = st.renda ? p / goal.pct : 0;            // 1 = bateu o limite / atingiu o mínimo
     const ok = st.renda > 0 && (goal.op === 'max' ? p <= goal.pct : p >= goal.pct);
-    const chip = !st.renda ? '<span class="goal-chip">sem receitas no período</span>'
-      : ok ? `<span class="goal-chip ok">✓ dentro da meta</span>`
-      : goal.op === 'max' ? `<span class="goal-chip bad">${fmtP(p - goal.pct)} acima · ${fmtBRL(val - st.renda * goal.pct / 100)}</span>`
+    const state = !st.renda ? 'none' : goal.op === 'max' ? (p > goal.pct ? 'bad' : prog >= .85 ? 'warn' : 'ok') : (ok ? 'ok' : 'warn');
+    const color = state === 'bad' ? 'var(--expense)' : g.color;
+    const chip = !st.renda ? '<span class="goal-chip">sem receitas</span>'
+      : ok ? `<span class="goal-chip ok">${goal.op === 'max' ? `sobram ${fmtBRL(st.renda * goal.pct / 100 - val)}` : '✓ meta batida'}</span>`
+      : goal.op === 'max' ? `<span class="goal-chip bad">${fmtBRL(val - st.renda * goal.pct / 100)} acima</span>`
       : `<span class="goal-chip warn">faltam ${fmtBRL(st.renda * goal.pct / 100 - val)}</span>`;
-    const w = Math.min(100, p), mark = Math.min(100, goal.pct);
-    return `<div class="goal" style="--gc:${g.color}">
-      <div class="goal-h"><b>${g.n}. ${esc(g.name)}</b><span class="goal-v">${fmtBRL(val)} <em>${st.renda ? fmtP(p) : '—'}</em></span></div>
-      <div class="goal-track"><i style="width:${w.toFixed(1)}%"></i><s style="left:${mark}%" title="meta ${esc(goal.label)}"></s></div>
-      <div class="goal-f"><span class="goal-note">meta ${esc(goal.label)}${top ? ' · ' + top : ''}</span>${chip}</div></div>`;
-  }).join('') + (st.outside ? `<div class="goal-out">⚠ ${fmtBRL(st.outside)} em ${st.outsideN} ${st.outsideN === 1 ? 'despesa' : 'despesas'} fora dos 4 grupos (Outros/Transferências/Cartões) — <button class="link-btn" data-goal-out>ver e reclassificar</button></div>` : '');
+    const top = cats.slice(0, 2).map(([c, v]) => `${esc(c)} ${fmtBRL(v)}`).join(' · ');
+    return `<div class="goal gl-ring is-${state}" style="--gc:${g.color}" data-goal="${g.id}">
+      <div class="gl-pie sm">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="gl-bg" cx="50" cy="50" r="${RING_R}"/>
+          ${arc('gl-seg gl-prog', color, `data-k="${g.id}"`)}
+          ${arc('gl-seg gl-over', 'var(--expense)', `data-k="${g.id}-over"`)}
+        </svg>
+        <div class="gl-mid"><b data-n="${g.id}">0%</b><small>${goal.op === 'max' ? 'limite' : 'mínimo'} ${goal.pct}%</small></div>
+      </div>
+      <div class="gl-info">
+        <div class="gl-name"><span class="gl-n">${g.n}</span>${esc(g.name)}</div>
+        <div class="goal-v">${fmtBRL(val)}</div>
+        ${chip}
+        ${top ? `<div class="goal-note" title="${top}">${top}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = split + rings + (st.outside ? `<div class="goal-out">⚠ ${fmtBRL(st.outside)} em ${st.outsideN} ${st.outsideN === 1 ? 'despesa' : 'despesas'} fora dos 4 grupos (Outros/Transferências/Cartões) — <button class="link-btn" data-goal-out>ver e reclassificar</button></div>` : '');
+
+  // alvos da animação
+  const target = { committed, free: livre };
+  segs.forEach(s => { target[s.key] = s.f; });
+  outs.forEach(({ g, val }) => { const pr = st.renda ? pct(val) / g.goal.pct : 0; target['r' + g.id] = pr; target['p' + g.id] = pct(val); });
+  const prevKey = el.id || 'goals';
+  const prev = GOAL_PREV.get(prevKey) || {};
+  GOAL_PREV.set(prevKey, target);
+  const lerp = (k, t) => (prev[k] ?? 0) + (target[k] - (prev[k] ?? 0)) * t;
+  const pieSegs = [...el.querySelectorAll('.gl-split .gl-seg')];
+  tween(900, (t) => {
+    let acc = 0;
+    pieSegs.forEach(c => { const f = lerp(c.dataset.k, t); setArc(c, acc, Math.max(0, f - (f > .004 ? .004 : 0))); acc += f; });
+    const n = el.querySelector('[data-n="committed"]'); if (n) n.textContent = st.renda ? fmtP(lerp('committed', t)) : '—';
+    outs.forEach(({ g }) => {
+      const r = lerp('r' + g.id, t), box = el.querySelector(`[data-goal="${g.id}"]`); if (!box) return;
+      setArc(box.querySelector('.gl-prog'), 0, Math.min(1, r));
+      setArc(box.querySelector('.gl-over'), 0, Math.max(0, Math.min(1, r - 1)));
+      const b = box.querySelector(`[data-n="${g.id}"]`); if (b) b.textContent = st.renda ? fmtP(lerp('p' + g.id, t)) : '—';
+    });
+  });
+
   el.querySelectorAll('[data-goal-out]').forEach(b => b.addEventListener('click', () => {
     txView.cat = '@none'; txView.type = 'expense';
     document.querySelector('#tabs .tab[data-tab="transactions"]')?.click();
@@ -500,7 +589,7 @@ function renderSummary(){
   const proj = netAvailable + incFc - expFc;
   const lastDay = `${daysIn(+cm.slice(0,4), +cm.slice(5,7))}/${cm.slice(5,7)}`;
 
-  $('#k-net').textContent = fmtBRL(netAvailable);
+  countUp($('#k-net'), netAvailable);
   $('#k-net').classList.toggle('neg', netAvailable < 0);
   $('#k-say').innerHTML = (incFc || expFc)
     ? `Até ${lastDay} ainda ${incFc ? `entram <b id="k-inc-fc">${fmtBRL(incFc)}</b>` : `<b id="k-inc-fc" hidden>${fmtBRL(0)}</b>não há receitas previstas`}${expFc ? ` e saem <b id="k-exp-fc">${fmtBRL(expFc)}</b>` : `<b id="k-exp-fc" hidden>${fmtBRL(0)}</b> e nenhuma despesa prevista`}. Você deve fechar ${monthLabel(cm,true)} com <b id="k-proj" class="${proj<0?'neg':''}">${fmtBRL(proj)}</b>.`
@@ -792,9 +881,9 @@ function renderTx(){
 
   tb.innerHTML = rows.map(t => {
     const sel = selectedTxs.has(t.id);
-    const col = CAT_COLORS[t.cat] || '#6E7BAE';
+    const col = CAT_COLORS[t.cat] || '#9CA3AF';
     const ent = entityOf(t.account);
-    const ac = ent?.color || '#6E7BAE';
+    const ac = ent?.color || '#9CA3AF';
     const tag = txTag(t);
     const neg = t.type === 'expense';
     const dim = t.hidden || isInternal(t);
@@ -1009,7 +1098,7 @@ function drawMonthly(){
   const padL = 50, padR = 8, padT = 12, padB = 30;
   const cw = w - padL - padR, ch = h - padT - padB;
   const max = Math.max(1, ...data.map(d => Math.max(d.inc, d.exp)));
-  const grid = 'rgba(142,155,204,.12)', txt3 = cssVar('--text-3');
+  const grid = 'rgba(20,45,35,.07)', txt3 = cssVar('--text-3');
 
   ctx.font = '11px "Plus Jakarta Sans", sans-serif';
   for (let i=0;i<=3;i++){
@@ -1055,7 +1144,7 @@ function renderCats(){
     <li><button class="dash-cat" data-cat="${esc(name)}" ${name==='Outras'?'disabled':''} title="Ver ${esc(name)} nas transações">
       <span class="dc-n">${catIcon(name)} ${esc(name)}</span>
       <span class="dc-v">${fmtBRL(val)} <small>${(val/total*100).toFixed(0)}%</small></span>
-      <span class="dc-t"><i style="width:${(val/max*100).toFixed(1)}%;background:${CAT_COLORS[name]||'#6E7BAE'}"></i></span>
+      <span class="dc-t"><i style="width:${(val/max*100).toFixed(1)}%;background:${CAT_COLORS[name]||'#9CA3AF'}"></i></span>
     </button></li>`).join('');
 }
 $('#cat-bars')?.addEventListener('click', (e) => {
@@ -1069,7 +1158,7 @@ $('#cat-bars')?.addEventListener('click', (e) => {
 let redrawT = null;
 function redrawCharts(){
   clearTimeout(redrawT);
-  redrawT = setTimeout(() => { drawMonthly(); renderCats(); }, 60);
+  redrawT = setTimeout(() => { if (!filters.from || !filters.to) return; drawMonthly(); renderCats(); }, 60);
 }
 window.addEventListener('resize', redrawCharts);
 
@@ -1568,7 +1657,7 @@ function openAccModal(op, id){
   $('#a-date').value = todayISO(); $('#a-amount').value = ''; $('#a-desc').value = '';
   const a = accounts.find(x => x.id === accEditId);
   $('#a-name').value = a ? a.name : ''; $('#a-initial').value = a ? a.initial : 0;
-  $('#a-color').value = a ? a.color : '#00E5FF';
+  $('#a-color').value = a ? a.color : '#0DB27A';
   $('#acc-seg').hidden = op === 'edit';
   setAccOp(op);
   $('#acc-overlay').hidden = false;
@@ -1842,7 +1931,7 @@ function renderNextInvoices(){
     <div class="mrow nx-row">
       <span class="mlab">${monthLabel(k)}</span>
       <span class="mbar stack">${totals[k].by.map(({card,v}) =>
-        `<span title="${esc(card.name)}: ${fmtBRL(v)}" style="width:${(v/max*100).toFixed(1)}%;background:${esc(card.color)};box-shadow:0 0 8px ${esc(card.color)}"></span>`).join('')}</span>
+        `<span title="${esc(card.name)}: ${fmtBRL(v)}" style="width:${(v/max*100).toFixed(1)}%;background:${esc(card.color)}"></span>`).join('')}</span>
       <span class="mval neg">${fmtBRL(totals[k].total).replace('R$ ','')}</span>
     </div>`).join('') +
     `<div class="alloc-legend" style="margin-top:12px">${cards.map(c => `<span class="lg"><i style="background:${esc(c.color)}"></i>${esc(c.name)}</span>`).join('')}</div>`;
@@ -1885,7 +1974,7 @@ function openCardModal(mode, id, key){
     $('#e-payfrom').innerHTML = '<option value="">(escolher na hora)</option>' + accOpts;
     $('#e-name').value = card?.name || ''; $('#e-limit').value = card?.limit ?? '';
     $('#e-close').value = card?.closingDay ?? 1; $('#e-due').value = card?.dueDay ?? 10;
-    $('#e-payfrom').value = card?.payFrom || ''; $('#e-color').value = card?.color || '#A472FF';
+    $('#e-payfrom').value = card?.payFrom || ''; $('#e-color').value = card?.color || '#7C5CFC';
     $('#e-last4').value = card?.last4 || '';
     $('#cc-submit').textContent = 'Salvar';
   }
@@ -1977,9 +2066,9 @@ $('#cc-form').addEventListener('submit', e => {
 
 // ══ INVESTIMENTOS ═══════════════════════════════════════════
 const INV_TYPES = {
-  'Renda Fixa (CDB/LCI/LCA)':'#00E5FF', 'Tesouro Direto':'#3DFF9E', 'Poupança':'#3DFFD6',
-  'Ações':'#FF2E97', 'FIIs':'#FFC44D', 'Fundos':'#A472FF', 'Cripto':'#FF7A00',
-  'Previdência':'#4D9BFF', 'Outros':'#8E9BCC',
+  'Renda Fixa (CDB/LCI/LCA)':'#0DB27A', 'Tesouro Direto':'#3B82F6', 'Poupança':'#14B8A6',
+  'Ações':'#EC4899', 'FIIs':'#F5A524', 'Fundos':'#7C5CFC', 'Cripto':'#FF7A00',
+  'Previdência':'#6366F1', 'Outros':'#94A3B8',
 };
 function invMoves(v){ return transactions.filter(t => t.kind === 'transfer' && sameName(t.account, v.name)); }
 function invPrincipal(v){
@@ -2023,15 +2112,15 @@ function renderInvestments(){
   investments.forEach(v => { by[v.type] = (by[v.type]||0) + (Number(v.current)||0); });
   const items = Object.entries(by).filter(([,x]) => x > 0).sort((a,b) => b[1]-a[1]);
   $('#iv-alloc-bar').innerHTML = items.length
-    ? items.map(([t,x]) => `<span title="${esc(t)}: ${fmtBRL(x)}" style="width:${(x/total*100).toFixed(2)}%;background:${INV_TYPES[t]||'#8E9BCC'};box-shadow:0 0 10px ${INV_TYPES[t]||'#8E9BCC'}"></span>`).join('')
+    ? items.map(([t,x]) => `<span title="${esc(t)}: ${fmtBRL(x)}" style="width:${(x/total*100).toFixed(2)}%;background:${INV_TYPES[t]||'#94A3B8'}"></span>`).join('')
     : '<span class="alloc-empty"></span>';
   $('#iv-alloc-legend').innerHTML = items.length
-    ? items.map(([t,x]) => `<span class="lg"><i style="background:${INV_TYPES[t]||'#8E9BCC'}"></i>${esc(t)} <b>${(x/total*100).toFixed(0)}%</b></span>`).join('')
+    ? items.map(([t,x]) => `<span class="lg"><i style="background:${INV_TYPES[t]||'#94A3B8'}"></i>${esc(t)} <b>${(x/total*100).toFixed(0)}%</b></span>`).join('')
     : '<span class="lg" style="color:var(--text-3)">Sem saldo investido ainda.</span>';
 
   grid.innerHTML = investments.map(v => {
     const p = invPrincipal(v), cur = Number(v.current)||0, g = cur - p;
-    return `<div class="acc-card iv-card ${selectedInv===v.id?'sel':''}" style="--ac:${esc(v.color || INV_TYPES[v.type] || '#00E5FF')}" data-inv="${v.id}">
+    return `<div class="acc-card iv-card ${selectedInv===v.id?'sel':''}" style="--ac:${esc(v.color || INV_TYPES[v.type] || '#0DB27A')}" data-inv="${v.id}">
       <div class="acc-head">
         <span class="acc-dot"></span><span class="acc-name">${esc(v.name)}</span>
         <button class="mini-btn" data-inv-edit="${v.id}" title="Editar">✎</button>
@@ -2125,7 +2214,7 @@ function openInvModal(op, id){
   $('#v-type').innerHTML = Object.keys(INV_TYPES).map(t => `<option>${esc(t)}</option>`).join('');
   const v = investments.find(x => x.id === ivEditId);
   $('#v-name').value = v?.name || ''; $('#v-type').value = v?.type || 'Renda Fixa (CDB/LCI/LCA)';
-  $('#v-inst').value = v?.institution || ''; $('#v-color').value = v?.color || INV_TYPES[v?.type] || '#00E5FF';
+  $('#v-inst').value = v?.institution || ''; $('#v-color').value = v?.color || INV_TYPES[v?.type] || '#0DB27A';
   $('#v-initial-row').hidden = !!v;
   $('#v-initial').value = 0; $('#v-current').value = 0;
   setIvOp(op);
@@ -2135,7 +2224,7 @@ function openInvModal(op, id){
 const closeInvModal = () => { $('#iv-overlay').hidden = true; ivEditId = null; };
 $$('#iv-seg button').forEach(b => b.addEventListener('click', () => setIvOp(b.dataset.op)));
 $('#i-inv').addEventListener('change', updateIvHint);
-$('#v-type').addEventListener('change', () => { if (!ivEditId) $('#v-color').value = INV_TYPES[$('#v-type').value] || '#00E5FF'; });
+$('#v-type').addEventListener('change', () => { if (!ivEditId) $('#v-color').value = INV_TYPES[$('#v-type').value] || '#0DB27A'; });
 $('#v-initial').addEventListener('input', () => { if (!(parseFloat($('#v-current').value) > 0)) $('#v-current').value = $('#v-initial').value; });
 $('#iv-close').addEventListener('click', closeInvModal);
 $('#iv-overlay').addEventListener('mousedown', e => { if (e.target.id === 'iv-overlay') closeInvModal(); });
